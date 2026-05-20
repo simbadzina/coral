@@ -4,7 +4,7 @@
 
 ## The public API
 
-Two static factory methods on `CoralSpark`, both in `coral-spark/src/main/java/com/linkedin/coral/spark/CoralSpark.java`:
+Two static factory methods on `CoralSpark`, both in [`coral-spark/src/main/java/com/linkedin/coral/spark/CoralSpark.java`](../coral-spark/src/main/java/com/linkedin/coral/spark/CoralSpark.java):
 
 ```java
 public static CoralSpark create(RelNode irRelNode, HiveMetastoreClient hmsClient);
@@ -43,7 +43,7 @@ Six stages, six classes. The order in `CoralSpark.create` matches the diagram ex
 
 ### Stage 1 — `IRRelToSparkRelTransformer`
 
-`IRRelToSparkRelTransformer.transform(RelNode)` (in `coral-spark/src/main/java/com/linkedin/coral/spark/IRRelToSparkRelTransformer.java`) is the only stage that operates on `RelNode` rather than `SqlNode`. It returns a `SparkRelInfo` carrying the transformed `RelNode` plus a `Set<SparkUDFInfo>` that downstream stages mutate as they discover more UDFs.
+`IRRelToSparkRelTransformer.transform(RelNode)` (in [`coral-spark/src/main/java/com/linkedin/coral/spark/IRRelToSparkRelTransformer.java`](../coral-spark/src/main/java/com/linkedin/coral/spark/IRRelToSparkRelTransformer.java)) is the only stage that operates on `RelNode` rather than `SqlNode`. It returns a `SparkRelInfo` carrying the transformed `RelNode` plus a `Set<SparkUDFInfo>` that downstream stages mutate as they discover more UDFs.
 
 The class is a pair of nested shuttles. The outer `RelShuttleImpl` overrides every `visit(Logical*)` method to recurse into children, then post-process the node with the inner `SparkRexConverter` `RexShuttle`. The shuttle handles all standard Calcite logical operators (`LogicalProject`, `LogicalFilter`, `LogicalJoin`, `LogicalUnion`, `LogicalAggregate`, `LogicalSort`, `LogicalCorrelate`, `LogicalValues`, `LogicalMatch`, `LogicalIntersect`, `LogicalMinus`, `LogicalExchange`, `TableScan`, `TableFunctionScan`) plus a catch-all `visit(RelNode)`.
 
@@ -55,7 +55,7 @@ The reason this stage exists at the `RelNode` layer instead of after `CoralRelTo
 
 ### Stage 2 — `CoralRelToSqlNodeConverter`
 
-`coral-spark/.../CoralSpark.java#constructSparkSqlNode` creates a fresh `CoralRelToSqlNodeConverter` (lives in `coral-hive/src/main/java/com/linkedin/coral/transformers/CoralRelToSqlNodeConverter.java`, package `com.linkedin.coral.transformers`) and calls `convert(sparkRelNode)`. This is the inverse of stage 5 in chapter 03's Hive frontend — it walks the `RelNode` tree and emits a Calcite `SqlNode` AST. The converter is dialect-neutral; Spark-specific shape comes from the later shuttles.
+`coral-spark/.../CoralSpark.java#constructSparkSqlNode` creates a fresh `CoralRelToSqlNodeConverter` (lives in [`coral-hive/src/main/java/com/linkedin/coral/transformers/CoralRelToSqlNodeConverter.java`](../coral-hive/src/main/java/com/linkedin/coral/transformers/CoralRelToSqlNodeConverter.java), package `com.linkedin.coral.transformers`) and calls `convert(sparkRelNode)`. This is the inverse of stage 5 in [chapter 03](03-pipeline-deep-dive.md)'s Hive frontend — it walks the `RelNode` tree and emits a Calcite `SqlNode` AST. The converter is dialect-neutral; Spark-specific shape comes from the later shuttles.
 
 ### Stage 3 — `DataTypeDerivedSqlCallConverter`
 
@@ -94,7 +94,7 @@ The UDF resolution stage and the largest transformer chain in the module. `Coral
 - Rewrite `VARCHAR(n)` → `STRING` and `VARBINARY` → `BINARY`. Spark's current SQL reference doesn't list `VARCHAR`/`VARBINARY`.
 - Normalize negative interval literals so `INTERVAL -'7' DAY` becomes `INTERVAL '-7' DAY`. Spark accepts the HiveQL style; the ANSI style with a leading sign confuses the parser.
 
-`SparkSqlDialect.INSTANCE.toSqlString(sqlNode)` then produces the final string. The dialect lives in `coral-spark/src/main/java/com/linkedin/coral/spark/dialect/SparkSqlDialect.java` and is the only file in `dialect/`. Its responsibilities:
+`SparkSqlDialect.INSTANCE.toSqlString(sqlNode)` then produces the final string. The dialect lives in [`coral-spark/src/main/java/com/linkedin/coral/spark/dialect/SparkSqlDialect.java`](../coral-spark/src/main/java/com/linkedin/coral/spark/dialect/SparkSqlDialect.java) and is the only file in `dialect/`. Its responsibilities:
 
 - **Identifier quoting** — `withIdentifierQuoteString("`")`, so `db.table` becomes `db.\`table\`` only when the unquoted name is a reserved keyword. The reserved-keyword list is hard-coded (`identifierNeedsQuote(String)` does a case-insensitive lookup).
 - **Casing** — `withUnquotedCasing(Casing.UNCHANGED).withQuotedCasing(Casing.UNCHANGED)`. Function names stay as written.
@@ -109,7 +109,7 @@ The UDF resolution stage and the largest transformer chain in the module. `Coral
 
 ## AddExplicitAlias
 
-`AddExplicitAlias` (in `coral-spark/src/main/java/com/linkedin/coral/spark/AddExplicitAlias.java`) is a `SqlShuttle` invoked only by the schema-aware `create(RelNode, Schema, HiveMetastoreClient)`. It visits the outermost `SqlSelect`, asserts the select list length matches the Avro field count, and replaces each select-list item with `AS(item, fieldName)`. If the item already had an `AS`, it strips the existing alias and substitutes the new one.
+`AddExplicitAlias` (in [`coral-spark/src/main/java/com/linkedin/coral/spark/AddExplicitAlias.java`](../coral-spark/src/main/java/com/linkedin/coral/spark/AddExplicitAlias.java)) is a `SqlShuttle` invoked only by the schema-aware `create(RelNode, Schema, HiveMetastoreClient)`. It visits the outermost `SqlSelect`, asserts the select list length matches the Avro field count, and replaces each select-list item with `AS(item, fieldName)`. If the item already had an `AS`, it strips the existing alias and substitutes the new one.
 
 The shuttle is gated by `isOutermostLevel` so it touches only the top `SELECT`, not nested ones. It also skips `SELECT *` entirely (the caller checks `isSelectStar(sparkSqlNode)` before invoking the shuttle) — there's no way to attach explicit aliases to a star projection.
 
@@ -121,7 +121,7 @@ Coral's job for Spark UDFs is twofold: rewrite the `SqlCall` in the AST to use t
 
 ### `SparkUDFInfo`
 
-Four fields (`coral-spark/src/main/java/com/linkedin/coral/spark/containers/SparkUDFInfo.java`):
+Four fields ([`coral-spark/src/main/java/com/linkedin/coral/spark/containers/SparkUDFInfo.java`](../coral-spark/src/main/java/com/linkedin/coral/spark/containers/SparkUDFInfo.java)):
 
 - `className` — the Spark UDF's Java class. For a Transport UDF, this is the `com.linkedin.stdudfs.*.spark.*` class. For a Hive fallback, it's the original Hive class.
 - `functionName` — the short name the SQL will reference. Pulled from `VersionedSqlUserDefinedFunction.getOriginalViewTextFunctionName()` — that's the name the view-creator chose in `TBLPROPERTIES('functions' = 'short_name:com.linkedin.FQCN')`.
@@ -165,7 +165,7 @@ The detection order — Transport first, Hive fallback — matters because a UDF
 
 ### `FuzzyUnionGenericProjectTransformer`
 
-`coral-spark/.../transformers/FuzzyUnionGenericProjectTransformer.java`. Pairs with `FuzzyUnionSqlRewriter` upstream (see chapter 15).
+`coral-spark/.../transformers/FuzzyUnionGenericProjectTransformer.java`. Pairs with `FuzzyUnionSqlRewriter` upstream (see [chapter 15](15-linkedin-specifics.md)).
 
 `condition`: the operator is a `GenericProjectFunction` and the call has three operands — `(col, col_name, hive_type_string)`. That's the shape the rewriter emits.
 
@@ -216,26 +216,26 @@ classDiagram
 
 ## Files this chapter discusses
 
-- `coral-spark/src/main/java/com/linkedin/coral/spark/CoralSpark.java`
-- `coral-spark/src/main/java/com/linkedin/coral/spark/IRRelToSparkRelTransformer.java`
-- `coral-spark/src/main/java/com/linkedin/coral/spark/CoralSqlNodeToSparkSqlNodeConverter.java`
-- `coral-spark/src/main/java/com/linkedin/coral/spark/CoralToSparkSqlCallConverter.java`
-- `coral-spark/src/main/java/com/linkedin/coral/spark/DataTypeDerivedSqlCallConverter.java`
-- `coral-spark/src/main/java/com/linkedin/coral/spark/SparkSqlRewriter.java`
-- `coral-spark/src/main/java/com/linkedin/coral/spark/AddExplicitAlias.java`
-- `coral-spark/src/main/java/com/linkedin/coral/spark/transformers/TransportUDFTransformer.java`
-- `coral-spark/src/main/java/com/linkedin/coral/spark/transformers/HiveUDFTransformer.java`
-- `coral-spark/src/main/java/com/linkedin/coral/spark/transformers/ExtractUnionFunctionTransformer.java`
-- `coral-spark/src/main/java/com/linkedin/coral/spark/transformers/FuzzyUnionGenericProjectTransformer.java`
-- `coral-spark/src/main/java/com/linkedin/coral/spark/containers/SparkUDFInfo.java`
-- `coral-spark/src/main/java/com/linkedin/coral/spark/containers/SparkRelInfo.java`
-- `coral-spark/src/main/java/com/linkedin/coral/spark/dialect/SparkSqlDialect.java`
-- `coral-hive/src/main/java/com/linkedin/coral/transformers/CoralRelToSqlNodeConverter.java`
+- [`coral-spark/src/main/java/com/linkedin/coral/spark/CoralSpark.java`](../coral-spark/src/main/java/com/linkedin/coral/spark/CoralSpark.java)
+- [`coral-spark/src/main/java/com/linkedin/coral/spark/IRRelToSparkRelTransformer.java`](../coral-spark/src/main/java/com/linkedin/coral/spark/IRRelToSparkRelTransformer.java)
+- [`coral-spark/src/main/java/com/linkedin/coral/spark/CoralSqlNodeToSparkSqlNodeConverter.java`](../coral-spark/src/main/java/com/linkedin/coral/spark/CoralSqlNodeToSparkSqlNodeConverter.java)
+- [`coral-spark/src/main/java/com/linkedin/coral/spark/CoralToSparkSqlCallConverter.java`](../coral-spark/src/main/java/com/linkedin/coral/spark/CoralToSparkSqlCallConverter.java)
+- [`coral-spark/src/main/java/com/linkedin/coral/spark/DataTypeDerivedSqlCallConverter.java`](../coral-spark/src/main/java/com/linkedin/coral/spark/DataTypeDerivedSqlCallConverter.java)
+- [`coral-spark/src/main/java/com/linkedin/coral/spark/SparkSqlRewriter.java`](../coral-spark/src/main/java/com/linkedin/coral/spark/SparkSqlRewriter.java)
+- [`coral-spark/src/main/java/com/linkedin/coral/spark/AddExplicitAlias.java`](../coral-spark/src/main/java/com/linkedin/coral/spark/AddExplicitAlias.java)
+- [`coral-spark/src/main/java/com/linkedin/coral/spark/transformers/TransportUDFTransformer.java`](../coral-spark/src/main/java/com/linkedin/coral/spark/transformers/TransportUDFTransformer.java)
+- [`coral-spark/src/main/java/com/linkedin/coral/spark/transformers/HiveUDFTransformer.java`](../coral-spark/src/main/java/com/linkedin/coral/spark/transformers/HiveUDFTransformer.java)
+- [`coral-spark/src/main/java/com/linkedin/coral/spark/transformers/ExtractUnionFunctionTransformer.java`](../coral-spark/src/main/java/com/linkedin/coral/spark/transformers/ExtractUnionFunctionTransformer.java)
+- [`coral-spark/src/main/java/com/linkedin/coral/spark/transformers/FuzzyUnionGenericProjectTransformer.java`](../coral-spark/src/main/java/com/linkedin/coral/spark/transformers/FuzzyUnionGenericProjectTransformer.java)
+- [`coral-spark/src/main/java/com/linkedin/coral/spark/containers/SparkUDFInfo.java`](../coral-spark/src/main/java/com/linkedin/coral/spark/containers/SparkUDFInfo.java)
+- [`coral-spark/src/main/java/com/linkedin/coral/spark/containers/SparkRelInfo.java`](../coral-spark/src/main/java/com/linkedin/coral/spark/containers/SparkRelInfo.java)
+- [`coral-spark/src/main/java/com/linkedin/coral/spark/dialect/SparkSqlDialect.java`](../coral-spark/src/main/java/com/linkedin/coral/spark/dialect/SparkSqlDialect.java)
+- [`coral-hive/src/main/java/com/linkedin/coral/transformers/CoralRelToSqlNodeConverter.java`](../coral-hive/src/main/java/com/linkedin/coral/transformers/CoralRelToSqlNodeConverter.java)
 
 ## Read next
 
-- Chapter 03 — the full Hive-to-Spark pipeline; this chapter zoomed into its stages 6-7.
-- Chapter 07 — the `SqlCallTransformer` framework the UDF transformers extend.
-- Chapter 11 — coral-spark-catalog, the Spark runtime integration that calls `CoralSpark.create(...)`.
-- Chapter 15 — Transport UDFs, fuzzy unions, and the rest of the LinkedIn-side terminology.
-- Chapter 16 — PR review companion.
+- [Chapter 03](03-pipeline-deep-dive.md) — the full Hive-to-Spark pipeline; this chapter zoomed into its stages 6-7.
+- [Chapter 07](07-transformers-pattern.md) — the `SqlCallTransformer` framework the UDF transformers extend.
+- [Chapter 11](11-coral-spark-catalog.md) — coral-spark-catalog, the Spark runtime integration that calls `CoralSpark.create(...)`.
+- [Chapter 15](15-linkedin-specifics.md) — Transport UDFs, fuzzy unions, and the rest of the LinkedIn-side terminology.
+- [Chapter 16](16-pr-review-companion.md) — PR review companion.

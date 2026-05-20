@@ -45,7 +45,7 @@ Seven transitions, six classes worth knowing in detail. The rest of this chapter
 
 **Class:** `ParseTreeBuilder extends AbstractASTVisitor<SqlNode, ParseContext>`.
 
-**File:** `coral-hive/src/main/java/com/linkedin/coral/hive/hive2rel/parsetree/ParseTreeBuilder.java`.
+**File:** [`coral-hive/src/main/java/com/linkedin/coral/hive/hive2rel/parsetree/ParseTreeBuilder.java`](../coral-hive/src/main/java/com/linkedin/coral/hive/hive2rel/parsetree/ParseTreeBuilder.java).
 
 **Method to set a breakpoint on:** `ParseTreeBuilder.process(String sql, Table hiveView)` (line 107) — this is the public entry. Inside, `processAST(root, hiveView)` does the recursion.
 
@@ -61,13 +61,13 @@ Seven transitions, six classes worth knowing in detail. The rest of this chapter
 
 **Class:** `HiveSqlNodeToCoralSqlNodeConverter extends SqlShuttle`.
 
-**File:** `coral-hive/src/main/java/com/linkedin/coral/hive/hive2rel/HiveSqlNodeToCoralSqlNodeConverter.java`.
+**File:** [`coral-hive/src/main/java/com/linkedin/coral/hive/hive2rel/HiveSqlNodeToCoralSqlNodeConverter.java`](../coral-hive/src/main/java/com/linkedin/coral/hive/hive2rel/HiveSqlNodeToCoralSqlNodeConverter.java).
 
 **Invoked from:** `HiveToRelConverter.toSqlNode(String, Table)`, after `ParseTreeBuilder` and (for views) `FuzzyUnionSqlRewriter`.
 
 **What it does:** applies normalization passes that move from Hive's surface conventions toward Coral's canonical IR. The clearest example is the shift from 1-based to 0-based array indexing. The shuttle visits every `SqlCall` and rewrites the ones that match.
 
-**This is where the `SqlCallTransformer` pattern shows up first.** Chapter 07 covers the pattern in detail; for now, note that the shuttle is a small chain.
+**This is where the `SqlCallTransformer` pattern shows up first.** [Chapter 07](07-transformers-pattern.md) covers the pattern in detail; for now, note that the shuttle is a small chain.
 
 **Output:** a normalized `SqlNode` tree. For our example, no transformation fires — the query has no Hive-isms that need normalization.
 
@@ -75,7 +75,7 @@ Seven transitions, six classes worth knowing in detail. The rest of this chapter
 
 **Class:** `HiveSqlValidator extends SqlValidatorImpl`.
 
-**File:** `coral-hive/src/main/java/com/linkedin/coral/hive/hive2rel/HiveSqlValidator.java`.
+**File:** [`coral-hive/src/main/java/com/linkedin/coral/hive/hive2rel/HiveSqlValidator.java`](../coral-hive/src/main/java/com/linkedin/coral/hive/hive2rel/HiveSqlValidator.java).
 
 **Operator table feeding it:** `ChainedSqlOperatorTable.of(SqlStdOperatorTable.instance(), DaliOperatorTable)` — Calcite's standard operators plus LinkedIn's Dali functions. See `HiveToRelConverter.getOperatorTable()`.
 
@@ -92,7 +92,7 @@ Seven transitions, six classes worth knowing in detail. The rest of this chapter
 
 **Class:** `HiveSqlToRelConverter extends SqlToRelConverter`.
 
-**File:** `coral-hive/src/main/java/com/linkedin/coral/hive/hive2rel/HiveSqlToRelConverter.java`.
+**File:** [`coral-hive/src/main/java/com/linkedin/coral/hive/hive2rel/HiveSqlToRelConverter.java`](../coral-hive/src/main/java/com/linkedin/coral/hive/hive2rel/HiveSqlToRelConverter.java).
 
 **Convertlet table:** `CoralConvertletTable` (file `coral-hive/.../CoralConvertletTable.java`).
 
@@ -118,7 +118,7 @@ This is Coral IR's lower layer. From here you can analyze, rewrite (for incremen
 
 **Entry class:** `CoralSpark` (in `coral-spark`).
 
-**File:** `coral-spark/src/main/java/com/linkedin/coral/spark/CoralSpark.java`.
+**File:** [`coral-spark/src/main/java/com/linkedin/coral/spark/CoralSpark.java`](../coral-spark/src/main/java/com/linkedin/coral/spark/CoralSpark.java).
 
 **Public API:** `CoralSpark.create(RelNode irRelNode, HiveMetastoreClient hmsClient)` (line 76).
 
@@ -127,7 +127,7 @@ This is Coral IR's lower layer. From here you can analyze, rewrite (for incremen
 1. `IRRelToSparkRelTransformer.transform(irRelNode)` returns a `SparkRelInfo` containing a Spark-specific `RelNode` and a set of `SparkUDFInfo` (UDFs Spark needs to register).
 2. `CoralRelToSqlNodeConverter` (from coral-common) converts the Spark `RelNode` back into a `SqlNode` tree, this time targeting Spark.
 3. `CoralSqlNodeToSparkSqlNodeConverter` applies Spark-specific SqlNode rewrites (e.g., UNNEST → LATERAL VIEW).
-4. `CoralToSparkSqlCallConverter` runs a chain of `SqlCallTransformer`s (chapter 07).
+4. `CoralToSparkSqlCallConverter` runs a chain of `SqlCallTransformer`s ([chapter 07](07-transformers-pattern.md)).
 5. `DataTypeDerivedSqlCallConverter` applies type-aware adjustments — knows runtime types via Calcite's `TypeDerivationUtil` and inserts CASTs where Spark and Hive disagree.
 
 **Spark-side transformers (file: `coral-spark/.../transformers/`):**
@@ -142,7 +142,7 @@ This is Coral IR's lower layer. From here you can analyze, rewrite (for incremen
 
 **Class:** `SparkSqlRewriter` + `SparkSqlDialect`.
 
-**File:** `coral-spark/src/main/java/com/linkedin/coral/spark/SparkSqlRewriter.java`.
+**File:** [`coral-spark/src/main/java/com/linkedin/coral/spark/SparkSqlRewriter.java`](../coral-spark/src/main/java/com/linkedin/coral/spark/SparkSqlRewriter.java).
 
 **What it does:** unparses the `SqlNode` tree using Calcite's `SqlPrettyWriter` with the Spark dialect. The dialect overrides identifier quoting (backticks vs. double quotes), function name casing, and similar surface conventions.
 
@@ -165,7 +165,7 @@ The walk above used a free SQL string (`convertSql`). For views, the entry is `c
 3. Iceberg tables are currently converted via `IcebergHiveTableConverter.toHiveTable(icebergTable)` to a minimal HMS `Table` for backward compatibility — issue #575 is tracking removal of this conversion.
 4. `toSqlNode(text, hiveTable)` then runs stages 2-3 with the view's HMS table available for Dali function resolution.
 
-The view path also runs `FuzzyUnionSqlRewriter` after `ParseTreeBuilder` to reconcile heterogeneous UNION branches (chapter 15).
+The view path also runs `FuzzyUnionSqlRewriter` after `ParseTreeBuilder` to reconcile heterogeneous UNION branches ([chapter 15](15-linkedin-specifics.md)).
 
 ## Hands-on: trace the example yourself
 
@@ -185,7 +185,7 @@ Exercise 01 in this guide is the longer-form version of this walk; do it once.
 
 ## What to read next
 
-- **Chapter 04** — coral-common, where most of the classes in this chapter live.
-- **Chapter 06** — coral-hive, deeper on stages 1-5.
-- **Chapter 07** — the `SqlCallTransformer` pattern, central to stage 6.
-- **Chapter 08** — coral-spark, deeper on stages 6-7.
+- **[Chapter 04](04-coral-common.md)** — coral-common, where most of the classes in this chapter live.
+- **[Chapter 06](06-coral-hive.md)** — coral-hive, deeper on stages 1-5.
+- **[Chapter 07](07-transformers-pattern.md)** — the `SqlCallTransformer` pattern, central to stage 6.
+- **[Chapter 08](08-coral-spark.md)** — coral-spark, deeper on stages 6-7.

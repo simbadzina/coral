@@ -13,7 +13,7 @@ graph TD
     Antlr -.->|ANTLR build step| Parsetree
 ```
 
-`HiveToRelConverter` extends `coral-common`'s `ToRelConverter` and fills in the five abstract hooks chapter 04 lays out. Each hook resolves to one class in the top-level package, so reading `HiveToRelConverter` is the fastest way to find the rest.
+`HiveToRelConverter` extends `coral-common`'s `ToRelConverter` and fills in the five abstract hooks [chapter 04](04-coral-common.md) lays out. Each hook resolves to one class in the top-level package, so reading `HiveToRelConverter` is the fastest way to find the rest.
 
 ## ANTLR grammar
 
@@ -24,11 +24,11 @@ Hive's grammar lives under `coral-hive/src/main/antlr/`, split between two folde
 
 ANTLR compiles these into Java sources under `coral-hive/src/main/java/com/linkedin/coral/hive/hive2rel/parsetree/parser/` (the directory is generated; the parser-related Java classes shipped as source files — `CoralParseDriver`, `ParseDriver`, `Node` — wrap the ANTLR output). The parser produces an `ASTNode` tree: every node carries an integer `type` (one of the `HiveParser.TOK_*` constants such as `TOK_SELECT`, `TOK_FUNCTION`, `TOK_TABLE_OR_COL`) and a `text` string. There is no polymorphism — every traversal switches on the type code.
 
-You will never edit ANTLR output by hand; the generated sources flow through the build. PRs that touch a `.g` file must trigger the ANTLR regeneration step in Gradle for downstream code to compile. If you see a grammar change in a PR without an accompanying refresh, that is a red flag — chapter 16's PR checklist calls it out.
+You will never edit ANTLR output by hand; the generated sources flow through the build. PRs that touch a `.g` file must trigger the ANTLR regeneration step in Gradle for downstream code to compile. If you see a grammar change in a PR without an accompanying refresh, that is a red flag — [chapter 16](16-pr-review-companion.md)'s PR checklist calls it out.
 
 ## ParseTreeBuilder
 
-`coral-hive/src/main/java/com/linkedin/coral/hive/hive2rel/parsetree/ParseTreeBuilder.java` is where `ASTNode` becomes `SqlNode`. The class extends `AbstractASTVisitor<SqlNode, ParseContext>`, an internal walker that dispatches on `ASTNode.getType()` to a named `visitXxx(ASTNode, C ctx)` method — `visitSelect`, `visitFunction`, `visitJoin`, `visitTabRefNode`, and so on. `AbstractASTVisitor` exists because Hive's AST is untyped and visitor-hostile; the dispatch table reproduces the missing polymorphism.
+[`coral-hive/src/main/java/com/linkedin/coral/hive/hive2rel/parsetree/ParseTreeBuilder.java`](../coral-hive/src/main/java/com/linkedin/coral/hive/hive2rel/parsetree/ParseTreeBuilder.java) is where `ASTNode` becomes `SqlNode`. The class extends `AbstractASTVisitor<SqlNode, ParseContext>`, an internal walker that dispatches on `ASTNode.getType()` to a named `visitXxx(ASTNode, C ctx)` method — `visitSelect`, `visitFunction`, `visitJoin`, `visitTabRefNode`, and so on. `AbstractASTVisitor` exists because Hive's AST is untyped and visitor-hostile; the dispatch table reproduces the missing polymorphism.
 
 Three entry points matter:
 
@@ -135,11 +135,11 @@ public SqlNode toSqlNode(String sql, Table hiveView) {
 
 `HiveSqlNodeToCoralSqlNodeConverter` (`coral-hive/.../HiveSqlNodeToCoralSqlNodeConverter.java`) is a `SqlShuttle` that wraps a `SqlCallTransformers` chain. Today the chain has exactly one entry — `ShiftArrayIndexTransformer`, which rewrites Hive's 0-based array access into Coral IR's canonical form. The shuttle exists less for what it does today and more as the named hook where normalization passes belong; new Hive-to-IR transformers slot in here.
 
-The class is also the first concrete user of the `SqlCallTransformer` pattern. The pattern itself — `condition(SqlCall)` decides whether to fire, `transform(SqlCall)` rewrites — gets its full treatment in chapter 07, alongside the much larger backend chains.
+The class is also the first concrete user of the `SqlCallTransformer` pattern. The pattern itself — `condition(SqlCall)` decides whether to fire, `transform(SqlCall)` rewrites — gets its full treatment in [chapter 07](07-transformers-pattern.md), alongside the much larger backend chains.
 
 ## Validation
 
-`HiveSqlValidator` (`coral-hive/.../HiveSqlValidator.java`) extends Calcite's `SqlValidatorImpl`. The constructor takes the operator table, the catalog reader, the type factory, and a `SqlConformance` — Hive paths use `HiveSqlConformance.HIVE_SQL`; Trino paths reuse this class but with a `TrinoSqlConformance` instance (chapter 09). The class overrides four methods:
+`HiveSqlValidator` (`coral-hive/.../HiveSqlValidator.java`) extends Calcite's `SqlValidatorImpl`. The constructor takes the operator table, the catalog reader, the type factory, and a `SqlConformance` — Hive paths use `HiveSqlConformance.HIVE_SQL`; Trino paths reuse this class but with a `TrinoSqlConformance` instance ([chapter 09](09-coral-trino.md)). The class overrides four methods:
 
 - The constructor calls `setDefaultNullCollation(NullCollation.LOW)` so unordered `NULL`s sort before other values, matching Hive's `ORDER BY`.
 - `inferUnknownTypes` short-circuits bare `NULL` literals to the explicit `SqlTypeName.NULL` type instead of inferring from context. Without this, `SELECT NULL` and `SELECT 1, NULL` produce different inferred types for the `NULL` literal.
@@ -156,9 +156,9 @@ The class is also the first concrete user of the `SqlCallTransformer` pattern. T
 - `convertFrom(Blackboard bb, SqlNode from)` adds one extra case to the standard dispatch: when the FROM expression's kind is `UNNEST`, route to `convertUnnestFrom` instead of the base class.
 - `convertUnnestFrom(Blackboard bb, SqlNode from)` builds a `HiveUncollect` (the `coral-common` subclass of Calcite's `Uncollect`) instead of a plain `Uncollect`. It also names un-aliased unnest columns with `CoralSqlUnnestOperator.ARRAY_ELEMENT_COLUMN_NAME` ("col") — Hive's default name when `LATERAL VIEW EXPLODE(arr) t` is written without `AS col`.
 
-`HiveUncollect`'s job — making `UNNEST(array<struct<...>>)` keep the struct intact as a single column instead of fanning out into separate columns — is implemented in `coral-common`; chapter 04 walks the override. From `coral-hive`'s perspective, `convertUnnestFrom` is the one place where the override gets installed.
+`HiveUncollect`'s job — making `UNNEST(array<struct<...>>)` keep the struct intact as a single column instead of fanning out into separate columns — is implemented in `coral-common`; [chapter 04](04-coral-common.md) walks the override. From `coral-hive`'s perspective, `convertUnnestFrom` is the one place where the override gets installed.
 
-`HiveToRelConverter.getSqlToRelConverter()` constructs the converter once, lazily, passing in `HiveViewExpander`, the validator, the catalog reader, a fresh `RelOptCluster` whose `RexBuilder` is `HiveRexBuilder` (case-insensitive struct field access — see chapter 02), the convertlet table, and a `Config` whose `RelBuilderFactory` is `HiveRelBuilder.LOGICAL_BUILDER`.
+`HiveToRelConverter.getSqlToRelConverter()` constructs the converter once, lazily, passing in `HiveViewExpander`, the validator, the catalog reader, a fresh `RelOptCluster` whose `RexBuilder` is `HiveRexBuilder` (case-insensitive struct field access — see [chapter 02](02-calcite-primer.md)), the convertlet table, and a `Config` whose `RelBuilderFactory` is `HiveRelBuilder.LOGICAL_BUILDER`.
 
 ## CoralConvertletTable
 
@@ -177,7 +177,7 @@ public SqlRexConvertlet get(SqlCall call) {
 }
 ```
 
-`super.get(call)` walks the reflectively-registered methods (the two listed above); if none match, defer to `StandardConvertletTable.INSTANCE`. The transformer pattern in chapter 07 is structurally similar — a small chain on top, a standard fall-through underneath.
+`super.get(call)` walks the reflectively-registered methods (the two listed above); if none match, defer to `StandardConvertletTable.INSTANCE`. The transformer pattern in [chapter 07](07-transformers-pattern.md) is structurally similar — a small chain on top, a standard fall-through underneath.
 
 ## View expansion
 
@@ -194,9 +194,9 @@ public RelRoot expandView(RelDataType rowType, String queryString,
 }
 ```
 
-That is the recursive expansion path. `processView` is the `ToRelConverter` method covered in chapter 04 — it pulls the view text out of the catalog, routes through `toSqlNode`, and returns a `SqlNode`. `HiveViewExpander` then re-runs `FuzzyUnionSqlRewriter` over the inner view's `SqlNode` (the rewriter is idempotent and re-applies cleanly per view), then converts to `RelNode` via the same `getSqlToRelConverter()` the outer query is using. Because `expandView` calls into `HiveToRelConverter`, which calls `getSqlToRelConverter().convertQuery`, which calls `expandView` again for nested views, the whole flow is recursive — a five-deep nested view chain expands all the way to its base tables before the outer plan finishes converting.
+That is the recursive expansion path. `processView` is the `ToRelConverter` method covered in [chapter 04](04-coral-common.md) — it pulls the view text out of the catalog, routes through `toSqlNode`, and returns a `SqlNode`. `HiveViewExpander` then re-runs `FuzzyUnionSqlRewriter` over the inner view's `SqlNode` (the rewriter is idempotent and re-applies cleanly per view), then converts to `RelNode` via the same `getSqlToRelConverter()` the outer query is using. Because `expandView` calls into `HiveToRelConverter`, which calls `getSqlToRelConverter().convertQuery`, which calls `expandView` again for nested views, the whole flow is recursive — a five-deep nested view chain expands all the way to its base tables before the outer plan finishes converting.
 
-`FuzzyUnionSqlRewriter` itself lives in `coral-common`. Its job is to reconcile UNION branches whose struct schemas drifted apart after view deployment — a view defined as `SELECT * FROM a UNION ALL SELECT * FROM b` deploys clean when `a` and `b` match, but Avro evolution can add a field to `b` later. The rewriter wraps every branch in `generic_project(col, 'col', hiveTypeString) AS col` to restore the deployed schema, leaving backends to materialize `generic_project` per engine. Full treatment in chapter 15.
+`FuzzyUnionSqlRewriter` itself lives in `coral-common`. Its job is to reconcile UNION branches whose struct schemas drifted apart after view deployment — a view defined as `SELECT * FROM a UNION ALL SELECT * FROM b` deploys clean when `a` and `b` match, but Avro evolution can add a field to `b` later. The rewriter wraps every branch in `generic_project(col, 'col', hiveTypeString) AS col` to restore the deployed schema, leaving backends to materialize `generic_project` per engine. Full treatment in [chapter 15](15-linkedin-specifics.md).
 
 ## Reviewer cheat sheet
 
@@ -205,38 +205,38 @@ For PRs that touch `coral-hive`:
 - **Adding a Hive built-in function.** Add an entry to `StaticHiveFunctionRegistry`'s static block using one of `addFunctionEntry` / `createAddUserDefinedFunction` / `createAddUserDefinedTableFunction`. Pick a `SqlReturnTypeInference` and `SqlOperandTypeChecker` that match Hive's semantics — `FunctionReturnTypes.STRING` versus `ReturnTypes.VARCHAR_2000` is not a stylistic choice. Add a test in `HiveToRelConverterTest` (or one of its companions) that runs the function and asserts the converted RelNode shape.
 - **Adding a UDTF.** Use `createAddUserDefinedTableFunction(name, returnFieldNames, returnFieldTypes, operandTypeChecker)` — the helper also writes the return field names to `UDTF_RETURN_FIELD_NAME_MAP` so `ParseTreeBuilder.visitLateralViewUDTF` can find them. Forgetting the map registration produces "User defined table function X is not registered" at parse time.
 - **Grammar changes.** A `.g` file change in `src/main/antlr/` must be accompanied by regeneration; CI will fail otherwise. Look for build-script changes in the same PR if the diff touches grammar.
-- **Hive-specific operator semantics.** New behavior often belongs in a `SqlCallTransformer` rather than in `ParseTreeBuilder`. Chapter 07 walks the framework.
+- **Hive-specific operator semantics.** New behavior often belongs in a `SqlCallTransformer` rather than in `ParseTreeBuilder`. [Chapter 07](07-transformers-pattern.md) walks the framework.
 - **View-handling changes.** Anything that touches `HiveViewExpander` or `FuzzyUnionSqlRewriter` is load-bearing for every Dali view at LinkedIn. Demand tests against nested views with three or more levels of nesting, and against views with UNION ALL whose branches drifted.
 - **Cast folding.** Changes to `CoralConvertletTable.convertCast` ripple into every backend. The current behavior (always emit an abstract cast) is intentional — proposals to "optimize" it should answer how Spark and Trino unparsing react when the cast is folded.
 
 ## Files this chapter discusses
 
-- `coral-hive/src/main/antlr/roots/com/linkedin/coral/hive/hive2rel/parsetree/parser/HiveParser.g`
-- `coral-hive/src/main/antlr/roots/com/linkedin/coral/hive/hive2rel/parsetree/parser/HiveLexer.g`
-- `coral-hive/src/main/antlr/imports/FromClauseParser.g`
-- `coral-hive/src/main/antlr/imports/SelectClauseParser.g`
-- `coral-hive/src/main/antlr/imports/IdentifiersParser.g`
-- `coral-hive/src/main/java/com/linkedin/coral/hive/hive2rel/HiveToRelConverter.java`
-- `coral-hive/src/main/java/com/linkedin/coral/hive/hive2rel/HiveSqlValidator.java`
-- `coral-hive/src/main/java/com/linkedin/coral/hive/hive2rel/HiveSqlToRelConverter.java`
-- `coral-hive/src/main/java/com/linkedin/coral/hive/hive2rel/HiveSqlNodeToCoralSqlNodeConverter.java`
-- `coral-hive/src/main/java/com/linkedin/coral/hive/hive2rel/CoralConvertletTable.java`
-- `coral-hive/src/main/java/com/linkedin/coral/hive/hive2rel/HiveViewExpander.java`
-- `coral-hive/src/main/java/com/linkedin/coral/hive/hive2rel/DaliOperatorTable.java`
-- `coral-hive/src/main/java/com/linkedin/coral/hive/hive2rel/HiveSqlConformance.java`
-- `coral-hive/src/main/java/com/linkedin/coral/hive/hive2rel/HiveRexBuilder.java`
-- `coral-hive/src/main/java/com/linkedin/coral/hive/hive2rel/parsetree/ParseTreeBuilder.java`
-- `coral-hive/src/main/java/com/linkedin/coral/hive/hive2rel/parsetree/AbstractASTVisitor.java`
-- `coral-hive/src/main/java/com/linkedin/coral/hive/hive2rel/functions/HiveFunctionResolver.java`
-- `coral-hive/src/main/java/com/linkedin/coral/hive/hive2rel/functions/StaticHiveFunctionRegistry.java`
-- `coral-hive/src/main/java/com/linkedin/coral/hive/hive2rel/functions/HiveFunction.java`
-- `coral-hive/src/main/java/com/linkedin/coral/hive/hive2rel/functions/VersionedSqlUserDefinedFunction.java`
-- `coral-hive/src/main/java/com/linkedin/coral/hive/hive2rel/functions/HiveGenericUDFReturnTypeInference.java`
-- `coral-common/src/main/java/com/linkedin/coral/common/FuzzyUnionSqlRewriter.java`
+- [`coral-hive/src/main/antlr/roots/com/linkedin/coral/hive/hive2rel/parsetree/parser/HiveParser.g`](../coral-hive/src/main/antlr/roots/com/linkedin/coral/hive/hive2rel/parsetree/parser/HiveParser.g)
+- [`coral-hive/src/main/antlr/roots/com/linkedin/coral/hive/hive2rel/parsetree/parser/HiveLexer.g`](../coral-hive/src/main/antlr/roots/com/linkedin/coral/hive/hive2rel/parsetree/parser/HiveLexer.g)
+- [`coral-hive/src/main/antlr/imports/FromClauseParser.g`](../coral-hive/src/main/antlr/imports/FromClauseParser.g)
+- [`coral-hive/src/main/antlr/imports/SelectClauseParser.g`](../coral-hive/src/main/antlr/imports/SelectClauseParser.g)
+- [`coral-hive/src/main/antlr/imports/IdentifiersParser.g`](../coral-hive/src/main/antlr/imports/IdentifiersParser.g)
+- [`coral-hive/src/main/java/com/linkedin/coral/hive/hive2rel/HiveToRelConverter.java`](../coral-hive/src/main/java/com/linkedin/coral/hive/hive2rel/HiveToRelConverter.java)
+- [`coral-hive/src/main/java/com/linkedin/coral/hive/hive2rel/HiveSqlValidator.java`](../coral-hive/src/main/java/com/linkedin/coral/hive/hive2rel/HiveSqlValidator.java)
+- [`coral-hive/src/main/java/com/linkedin/coral/hive/hive2rel/HiveSqlToRelConverter.java`](../coral-hive/src/main/java/com/linkedin/coral/hive/hive2rel/HiveSqlToRelConverter.java)
+- [`coral-hive/src/main/java/com/linkedin/coral/hive/hive2rel/HiveSqlNodeToCoralSqlNodeConverter.java`](../coral-hive/src/main/java/com/linkedin/coral/hive/hive2rel/HiveSqlNodeToCoralSqlNodeConverter.java)
+- [`coral-hive/src/main/java/com/linkedin/coral/hive/hive2rel/CoralConvertletTable.java`](../coral-hive/src/main/java/com/linkedin/coral/hive/hive2rel/CoralConvertletTable.java)
+- [`coral-hive/src/main/java/com/linkedin/coral/hive/hive2rel/HiveViewExpander.java`](../coral-hive/src/main/java/com/linkedin/coral/hive/hive2rel/HiveViewExpander.java)
+- [`coral-hive/src/main/java/com/linkedin/coral/hive/hive2rel/DaliOperatorTable.java`](../coral-hive/src/main/java/com/linkedin/coral/hive/hive2rel/DaliOperatorTable.java)
+- [`coral-hive/src/main/java/com/linkedin/coral/hive/hive2rel/HiveSqlConformance.java`](../coral-hive/src/main/java/com/linkedin/coral/hive/hive2rel/HiveSqlConformance.java)
+- [`coral-hive/src/main/java/com/linkedin/coral/hive/hive2rel/HiveRexBuilder.java`](../coral-hive/src/main/java/com/linkedin/coral/hive/hive2rel/HiveRexBuilder.java)
+- [`coral-hive/src/main/java/com/linkedin/coral/hive/hive2rel/parsetree/ParseTreeBuilder.java`](../coral-hive/src/main/java/com/linkedin/coral/hive/hive2rel/parsetree/ParseTreeBuilder.java)
+- [`coral-hive/src/main/java/com/linkedin/coral/hive/hive2rel/parsetree/AbstractASTVisitor.java`](../coral-hive/src/main/java/com/linkedin/coral/hive/hive2rel/parsetree/AbstractASTVisitor.java)
+- [`coral-hive/src/main/java/com/linkedin/coral/hive/hive2rel/functions/HiveFunctionResolver.java`](../coral-hive/src/main/java/com/linkedin/coral/hive/hive2rel/functions/HiveFunctionResolver.java)
+- [`coral-hive/src/main/java/com/linkedin/coral/hive/hive2rel/functions/StaticHiveFunctionRegistry.java`](../coral-hive/src/main/java/com/linkedin/coral/hive/hive2rel/functions/StaticHiveFunctionRegistry.java)
+- [`coral-hive/src/main/java/com/linkedin/coral/hive/hive2rel/functions/HiveFunction.java`](../coral-hive/src/main/java/com/linkedin/coral/hive/hive2rel/functions/HiveFunction.java)
+- [`coral-hive/src/main/java/com/linkedin/coral/hive/hive2rel/functions/VersionedSqlUserDefinedFunction.java`](../coral-hive/src/main/java/com/linkedin/coral/hive/hive2rel/functions/VersionedSqlUserDefinedFunction.java)
+- [`coral-hive/src/main/java/com/linkedin/coral/hive/hive2rel/functions/HiveGenericUDFReturnTypeInference.java`](../coral-hive/src/main/java/com/linkedin/coral/hive/hive2rel/functions/HiveGenericUDFReturnTypeInference.java)
+- [`coral-common/src/main/java/com/linkedin/coral/common/FuzzyUnionSqlRewriter.java`](../coral-common/src/main/java/com/linkedin/coral/common/FuzzyUnionSqlRewriter.java)
 
 ## Read next
 
-- **Chapter 07** — the `SqlCallTransformer` framework. `HiveSqlNodeToCoralSqlNodeConverter` is its first user; backends are where it gets dense.
-- **Chapter 08** — `coral-spark`, the most-used backend, consumes the RelNode this chapter's pipeline produces.
-- **Chapter 15** — `FuzzyUnionSqlRewriter`, Dali UDFs, and the rest of the LinkedIn-specific machinery that `coral-hive` integrates with.
-- **Chapter 16** — reviewer's checklist, including the full per-PR rules for `StaticHiveFunctionRegistry` additions and grammar changes.
+- **[Chapter 07](07-transformers-pattern.md)** — the `SqlCallTransformer` framework. `HiveSqlNodeToCoralSqlNodeConverter` is its first user; backends are where it gets dense.
+- **[Chapter 08](08-coral-spark.md)** — `coral-spark`, the most-used backend, consumes the RelNode this chapter's pipeline produces.
+- **[Chapter 15](15-linkedin-specifics.md)** — `FuzzyUnionSqlRewriter`, Dali UDFs, and the rest of the LinkedIn-specific machinery that `coral-hive` integrates with.
+- **[Chapter 16](16-pr-review-companion.md)** — reviewer's checklist, including the full per-PR rules for `StaticHiveFunctionRegistry` additions and grammar changes.

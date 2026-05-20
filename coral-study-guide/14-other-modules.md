@@ -21,7 +21,7 @@ graph LR
 
 Translates Coral IR `RelNode` trees to Pig Latin scripts. Mostly legacy — Pig is in maintenance mode across the industry and this backend hasn't seen feature work in years. It exists because some LinkedIn batch jobs still emit Pig.
 
-The entry point is `coral-pig/src/main/java/com/linkedin/coral/pig/rel2pig/RelToPigLatinConverter.java`. `convert(RelNode root, String outputRelation)` walks the plan top-down and emits Pig statements into a `RelToPigBuilder` accumulator. The `outputRelation` argument names the final Pig alias the script writes into.
+The entry point is [`coral-pig/src/main/java/com/linkedin/coral/pig/rel2pig/RelToPigLatinConverter.java`](../coral-pig/src/main/java/com/linkedin/coral/pig/rel2pig/RelToPigLatinConverter.java). `convert(RelNode root, String outputRelation)` walks the plan top-down and emits Pig statements into a `RelToPigBuilder` accumulator. The `outputRelation` argument names the final Pig alias the script writes into.
 
 The package layout under `rel2pig/` follows a per-operator class pattern. `PigTableScan` emits a `LOAD` statement; `PigLogicalProject` emits `FOREACH ... GENERATE`; `PigLogicalFilter` emits `FILTER ... BY`; `PigLogicalJoin` emits `JOIN`; `PigLogicalAggregate` emits `GROUP ... BY` followed by aggregate `FOREACH`; `PigLogicalUnion` emits `UNION`. `PigRexUtils` translates `RexNode` expressions; `PigRelUtils` collects UDF definitions for the script preamble. The companion `functions/` and `operators/` subpackages map Calcite operator names to their Pig equivalents through `CalcitePigOperatorMap`. The supported `RelNode` set is narrow — `LogicalCorrelate`, `LogicalIntersect`, `LogicalMinus`, `LogicalSort`, and `LogicalValues` all throw `UnsupportedRelNodeException`.
 
@@ -45,7 +45,7 @@ Typical PRs: macro fixes for new dbt versions, additional materialization varian
 
 Rewrites a `RelNode` view definition into an incremental form: replace every base table `T` with `T_delta ∪ T`, then push that union upward through joins by distributing across `(left, right)`, `(left_delta, right)`, `(left, right_delta)`, `(left_delta, right_delta)`. The output computes the delta-set of the view from the delta-sets of its inputs, which is dramatically cheaper than recomputing the full view when input changes are small. This is the engine behind the dbt `incremental_maintenance` materialization in the section above, and behind ViewShift's incremental refresh path.
 
-The entire module is one class: `coral-incremental/src/main/java/com/linkedin/coral/incremental/RelNodeIncrementalTransformer.java`. The static entry point is `convertRelIncremental(RelNode)`. It runs a Calcite `RelShuttleImpl` that overrides one visit method per logical operator.
+The entire module is one class: [`coral-incremental/src/main/java/com/linkedin/coral/incremental/RelNodeIncrementalTransformer.java`](../coral-incremental/src/main/java/com/linkedin/coral/incremental/RelNodeIncrementalTransformer.java). The static entry point is `convertRelIncremental(RelNode)`. It runs a Calcite `RelShuttleImpl` that overrides one visit method per logical operator.
 
 The two interesting cases:
 
@@ -62,7 +62,7 @@ Typical PRs: extending the `RelShuttle` to handle more operator types, fixing fi
 
 Renders `SqlNode` and `RelNode` trees as SVG files via Graphviz. The intended use is debugging gnarly transformations — when a `SqlCallTransformer` or convertlet behaves unexpectedly, dump the before/after trees and diff the pictures.
 
-`coral-visualization/src/main/java/com/linkedin/coral/vis/VisualizationUtil.java` is the entry point. Factory method `VisualizationUtil.create(File outputDirectory)` configures where SVGs land; `visualizeSqlNodeToFile(SqlNode, String)` and `visualizeRelNodeToFile(RelNode, String)` write a single tree to the named file. Internally, `SqlNodeVisualizationVisitor` (a `SqlVisitor<Node>`) and `RelNodeVisualizationShuttle` (a `RelShuttle`) walk their respective trees, build `guru.nidi.graphviz.model.Node` objects with Courier-font labels, and hand them to `Graphviz.fromGraph(...).render(Format.SVG)`. Width is hard-coded at 1000 pixels.
+[`coral-visualization/src/main/java/com/linkedin/coral/vis/VisualizationUtil.java`](../coral-visualization/src/main/java/com/linkedin/coral/vis/VisualizationUtil.java) is the entry point. Factory method `VisualizationUtil.create(File outputDirectory)` configures where SVGs land; `visualizeSqlNodeToFile(SqlNode, String)` and `visualizeRelNodeToFile(RelNode, String)` write a single tree to the named file. Internally, `SqlNodeVisualizationVisitor` (a `SqlVisitor<Node>`) and `RelNodeVisualizationShuttle` (a `RelShuttle`) walk their respective trees, build `guru.nidi.graphviz.model.Node` objects with Courier-font labels, and hand them to `Graphviz.fromGraph(...).render(Format.SVG)`. Width is hard-coded at 1000 pixels.
 
 The module is wrapped by `coral-service`'s `VisualizationController` (`POST /api/visualizations/generategraphs`), which produces up to four SVGs per request (pre-rewrite SqlNode and RelNode, post-rewrite SqlNode and RelNode) keyed by UUIDs and serves them through a separate GET endpoint.
 
@@ -72,7 +72,7 @@ Typical PRs: visiting a node type the visitor doesn't recognize (rendering shows
 
 Spring Boot REST service that exposes translation, visualization, and incremental-rewrite APIs over HTTP. The driver for the dbt integration above and the development-time UI under `coral-service/frontend/`.
 
-`coral-service/src/main/java/com/linkedin/coral/coralservice/CoralServiceApplication.java` is a one-line `@SpringBootApplication` bootstrap. Under `coralservice/` the layout is conventional Spring:
+[`coral-service/src/main/java/com/linkedin/coral/coralservice/CoralServiceApplication.java`](../coral-service/src/main/java/com/linkedin/coral/coralservice/CoralServiceApplication.java) is a one-line `@SpringBootApplication` bootstrap. Under `coralservice/` the layout is conventional Spring:
 
 - `controller/TranslationController` — `POST /api/translations/translate`, gated by Spring profile `remoteMetastore` or `default`. Talks to a real HMS via `MetastoreProvider`.
 - `controller/TranslationControllerLocal` — gated by profile `localMetastore`. Adds `POST /api/catalog-ops/execute` for `CREATE DATABASE|TABLE|VIEW` against an embedded Hive metastore (Derby-backed via `SessionState.start(conf)`). Extends `TranslationController` so all the translation endpoints work locally too.
@@ -90,7 +90,7 @@ Typical PRs: new endpoints (a new IR rewrite usually surfaces here as an API), p
 
 The reverse-direction module: a Spark physical-plan or optimized-logical-plan text dump (the output of `EXPLAIN`) is parsed into a Coral `RelNode`. Useful for analyzing how Spark optimized a query — predicate pushdown, join reordering, partition pruning — without reimplementing Spark's own analyzer.
 
-`coral-spark-plan/src/main/java/com/linkedin/coral/sparkplan/SparkPlanToIRRelConverter.java` is the entry point. Factory methods `create(HiveMetastoreClient)` and `create(String localMetastorePath)` configure the underlying `HiveToRelConverter` (since plan text references Hive tables by name and needs to resolve their schemas). The main analysis API is `getComplicatedPredicatePushedDownInfo(String plan)` and `containsComplicatedPredicatePushedDown(String plan)` — given a plan, walk the scan nodes and classify their pushed-down predicates as "simple" (`=`, `>`, `IN`, `IS NULL`, boolean ops, `LIKE`) or "complicated" (anything containing `datediff`, `substring`, or other non-trivial functions). The use case is detecting when a Spark optimization didn't fire as expected, before the query goes to production.
+[`coral-spark-plan/src/main/java/com/linkedin/coral/sparkplan/SparkPlanToIRRelConverter.java`](../coral-spark-plan/src/main/java/com/linkedin/coral/sparkplan/SparkPlanToIRRelConverter.java) is the entry point. Factory methods `create(HiveMetastoreClient)` and `create(String localMetastorePath)` configure the underlying `HiveToRelConverter` (since plan text references Hive tables by name and needs to resolve their schemas). The main analysis API is `getComplicatedPredicatePushedDownInfo(String plan)` and `containsComplicatedPredicatePushedDown(String plan)` — given a plan, walk the scan nodes and classify their pushed-down predicates as "simple" (`=`, `>`, `IN`, `IS NULL`, boolean ops, `LIKE`) or "complicated" (anything containing `datediff`, `substring`, or other non-trivial functions). The use case is detecting when a Spark optimization didn't fire as expected, before the query goes to production.
 
 Internally, `constructDAG` parses the indented plan text into a tree of `SparkPlanNode` containers (in `containers/SparkPlanNode.java`), then `traverse` walks each scan node and re-parses its predicate string through `HiveToRelConverter` to recover a `RexNode` for analysis. The plan-text parsing is regex-and-indent based — fragile against Spark version changes that tweak `EXPLAIN` output format.
 
@@ -98,28 +98,28 @@ Typical PRs: extending the `SIMPLE_PREDICATE_OPERATORS` set, adapting the regex 
 
 ## Files this chapter discusses
 
-- `coral-pig/src/main/java/com/linkedin/coral/pig/rel2pig/RelToPigLatinConverter.java`
+- [`coral-pig/src/main/java/com/linkedin/coral/pig/rel2pig/RelToPigLatinConverter.java`](../coral-pig/src/main/java/com/linkedin/coral/pig/rel2pig/RelToPigLatinConverter.java)
 - `coral-pig/src/main/java/com/linkedin/coral/pig/rel2pig/rel/`
-- `coral-dbt/build.gradle`
-- `coral-dbt/README.md`
+- [`coral-dbt/build.gradle`](../coral-dbt/build.gradle)
+- [`coral-dbt/README.md`](../coral-dbt/README.md)
 - `coral-dbt/src/main/resources/macros/`
-- `coral-incremental/src/main/java/com/linkedin/coral/incremental/RelNodeIncrementalTransformer.java`
-- `coral-visualization/src/main/java/com/linkedin/coral/vis/VisualizationUtil.java`
-- `coral-visualization/src/main/java/com/linkedin/coral/vis/SqlNodeVisualizationVisitor.java`
-- `coral-visualization/src/main/java/com/linkedin/coral/vis/RelNodeVisualizationShuttle.java`
-- `coral-service/build.gradle`
-- `coral-service/src/main/java/com/linkedin/coral/coralservice/CoralServiceApplication.java`
-- `coral-service/src/main/java/com/linkedin/coral/coralservice/controller/TranslationController.java`
-- `coral-service/src/main/java/com/linkedin/coral/coralservice/controller/TranslationControllerLocal.java`
-- `coral-service/src/main/java/com/linkedin/coral/coralservice/controller/VisualizationController.java`
-- `coral-service/src/main/java/com/linkedin/coral/coralservice/metastore/MetastoreProvider.java`
+- [`coral-incremental/src/main/java/com/linkedin/coral/incremental/RelNodeIncrementalTransformer.java`](../coral-incremental/src/main/java/com/linkedin/coral/incremental/RelNodeIncrementalTransformer.java)
+- [`coral-visualization/src/main/java/com/linkedin/coral/vis/VisualizationUtil.java`](../coral-visualization/src/main/java/com/linkedin/coral/vis/VisualizationUtil.java)
+- [`coral-visualization/src/main/java/com/linkedin/coral/vis/SqlNodeVisualizationVisitor.java`](../coral-visualization/src/main/java/com/linkedin/coral/vis/SqlNodeVisualizationVisitor.java)
+- [`coral-visualization/src/main/java/com/linkedin/coral/vis/RelNodeVisualizationShuttle.java`](../coral-visualization/src/main/java/com/linkedin/coral/vis/RelNodeVisualizationShuttle.java)
+- [`coral-service/build.gradle`](../coral-service/build.gradle)
+- [`coral-service/src/main/java/com/linkedin/coral/coralservice/CoralServiceApplication.java`](../coral-service/src/main/java/com/linkedin/coral/coralservice/CoralServiceApplication.java)
+- [`coral-service/src/main/java/com/linkedin/coral/coralservice/controller/TranslationController.java`](../coral-service/src/main/java/com/linkedin/coral/coralservice/controller/TranslationController.java)
+- [`coral-service/src/main/java/com/linkedin/coral/coralservice/controller/TranslationControllerLocal.java`](../coral-service/src/main/java/com/linkedin/coral/coralservice/controller/TranslationControllerLocal.java)
+- [`coral-service/src/main/java/com/linkedin/coral/coralservice/controller/VisualizationController.java`](../coral-service/src/main/java/com/linkedin/coral/coralservice/controller/VisualizationController.java)
+- [`coral-service/src/main/java/com/linkedin/coral/coralservice/metastore/MetastoreProvider.java`](../coral-service/src/main/java/com/linkedin/coral/coralservice/metastore/MetastoreProvider.java)
 - `coral-service/frontend/`
-- `coral-spark-plan/src/main/java/com/linkedin/coral/sparkplan/SparkPlanToIRRelConverter.java`
-- `coral-spark-plan/src/main/java/com/linkedin/coral/sparkplan/containers/SparkPlanNode.java`
+- [`coral-spark-plan/src/main/java/com/linkedin/coral/sparkplan/SparkPlanToIRRelConverter.java`](../coral-spark-plan/src/main/java/com/linkedin/coral/sparkplan/SparkPlanToIRRelConverter.java)
+- [`coral-spark-plan/src/main/java/com/linkedin/coral/sparkplan/containers/SparkPlanNode.java`](../coral-spark-plan/src/main/java/com/linkedin/coral/sparkplan/containers/SparkPlanNode.java)
 
 ## Read next
 
-- Chapter 13 — coral-incremental in context: how `RelNodeIncrementalTransformer` plugs into the larger transformer story.
-- Chapter 16 — PR review companion: per-module checklists for the six modules covered here.
+- [Chapter 13](13-coral-data-generation.md) — coral-incremental in context: how `RelNodeIncrementalTransformer` plugs into the larger transformer story.
+- [Chapter 16](16-pr-review-companion.md) — PR review companion: per-module checklists for the six modules covered here.
 </content>
 </invoke>

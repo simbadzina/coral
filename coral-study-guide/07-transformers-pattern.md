@@ -4,7 +4,7 @@ This is the most-touched code surface in Coral. Every backend uses it; most PRs 
 
 ## The interface
 
-`SqlCallTransformer` is an abstract class in `coral-common/src/main/java/com/linkedin/coral/common/transformers/SqlCallTransformer.java`. Two abstract methods define a transformer:
+`SqlCallTransformer` is an abstract class in [`coral-common/src/main/java/com/linkedin/coral/common/transformers/SqlCallTransformer.java`](../coral-common/src/main/java/com/linkedin/coral/common/transformers/SqlCallTransformer.java). Two abstract methods define a transformer:
 
 ```java
 protected abstract boolean condition(SqlCall sqlCall);
@@ -39,7 +39,7 @@ A transformer that needs to look at the *type* of an operand (not just its posit
 public SqlCallTransformer(TypeDerivationUtil typeDerivationUtil) { ... }
 ```
 
-`TypeDerivationUtil` (in `coral-common/src/main/java/com/linkedin/coral/common/utils/TypeDerivationUtil.java`) wraps a `SqlValidator` and the top-level `SqlNode`. Given any `SqlNode` you ask it about, it constructs a synthetic `SELECT <node>` against the surrounding query, runs the validator, and returns the validated type. The implementation iterates over every top-level `SqlSelect` it found during construction so it works even when the query is a UNION ALL of selects with different `FROM` clauses.
+`TypeDerivationUtil` (in [`coral-common/src/main/java/com/linkedin/coral/common/utils/TypeDerivationUtil.java`](../coral-common/src/main/java/com/linkedin/coral/common/utils/TypeDerivationUtil.java)) wraps a `SqlValidator` and the top-level `SqlNode`. Given any `SqlNode` you ask it about, it constructs a synthetic `SELECT <node>` against the surrounding query, runs the validator, and returns the validated type. The implementation iterates over every top-level `SqlSelect` it found during construction so it works even when the query is a UNION ALL of selects with different `FROM` clauses.
 
 Transformers without type dependencies (e.g., `OperatorRenameSqlCallTransformer` — same operands, new name) use the no-arg constructor and never call `deriveRelDatatype`. Transformers that branch on operand type — `FromUtcTimestampOperatorTransformer`, `NamedStructToCastTransformer`, `SubstrOperatorTransformer` — require it. The split between `CoralToTrinoSqlCallConverter` and `DataTypeDerivedSqlCallConverter` in coral-trino exists because the latter needs a built `TypeDerivationUtil` and the former does not.
 
@@ -183,7 +183,7 @@ The dialect modules each carry a `transformers/` subpackage. `coral-trino/src/ma
 - **`FromUtcTimestampOperatorTransformer`** (coral-trino) — the textbook transformer for "Trino has no direct equivalent." Walked in detail in the next section.
 - **`NamedStructToCastTransformer`** (coral-trino) — rewrites `named_struct('abc', 123, 'def', 'xyz')` to `CAST(ROW(123, 'xyz') AS ROW(abc INTEGER, def CHAR(3)))`. Demonstrates the type-aware path: it uses `deriveRelDatatype` to figure out each value's type, then builds a `SqlRowTypeSpec` to cast through. The class also installs an anonymous `SqlCastFunction` override of `deriveType` so nested `named_struct` calls (inner already rewritten, outer not yet) keep type-deriving correctly.
 - **`HiveUDFTransformer`** (both modules) — same name, different jobs. The coral-trino version maps a Hive UDF class name like `com.linkedin.stdudfs.parsing.hive.Ip2Str` to its short Trino-side name `ip2str` (no JAR registration; Trino owns the registry). The coral-spark version does the same rename and *also* emits a `SparkUDFInfo` so the caller can `ADD JAR` and register at runtime.
-- **`TransportUDFTransformer`** (coral-spark) — LinkedIn-specific. Detects a known Transport UDF class name, replaces the operator with the engine-specific Spark name, records the Ivy URL (Scala 2.11 vs. 2.12) into `SparkUDFInfo`. Chapter 15 covers Transport UDFs in detail; the point here is that one transformer encapsulates "swap operator + emit side-effect metadata."
+- **`TransportUDFTransformer`** (coral-spark) — LinkedIn-specific. Detects a known Transport UDF class name, replaces the operator with the engine-specific Spark name, records the Ivy URL (Scala 2.11 vs. 2.12) into `SparkUDFInfo`. [Chapter 15](15-linkedin-specifics.md) covers Transport UDFs in detail; the point here is that one transformer encapsulates "swap operator + emit side-effect metadata."
 
 ## Worked example: `FromUtcTimestampOperatorTransformer`
 
@@ -273,24 +273,24 @@ A type-dependent transformer in coral-trino additionally lives behind `DataTypeD
 
 ## Files this chapter discusses
 
-- `coral-common/src/main/java/com/linkedin/coral/common/transformers/SqlCallTransformer.java`
-- `coral-common/src/main/java/com/linkedin/coral/common/transformers/SqlCallTransformers.java`
-- `coral-common/src/main/java/com/linkedin/coral/common/transformers/SourceOperatorMatchSqlCallTransformer.java`
-- `coral-common/src/main/java/com/linkedin/coral/common/transformers/OperatorRenameSqlCallTransformer.java`
-- `coral-common/src/main/java/com/linkedin/coral/common/transformers/JsonTransformSqlCallTransformer.java`
-- `coral-common/src/main/java/com/linkedin/coral/common/utils/TypeDerivationUtil.java`
-- `coral-trino/src/main/java/com/linkedin/coral/trino/rel2trino/CoralToTrinoSqlCallConverter.java`
-- `coral-trino/src/main/java/com/linkedin/coral/trino/rel2trino/DataTypeDerivedSqlCallConverter.java`
-- `coral-trino/src/main/java/com/linkedin/coral/trino/rel2trino/transformers/FromUtcTimestampOperatorTransformer.java`
-- `coral-trino/src/main/java/com/linkedin/coral/trino/rel2trino/transformers/NamedStructToCastTransformer.java`
-- `coral-trino/src/main/java/com/linkedin/coral/trino/rel2trino/transformers/CoralRegistryOperatorRenameSqlCallTransformer.java`
-- `coral-trino/src/main/java/com/linkedin/coral/trino/rel2trino/transformers/HiveUDFTransformer.java`
-- `coral-spark/src/main/java/com/linkedin/coral/spark/CoralToSparkSqlCallConverter.java`
-- `coral-spark/src/main/java/com/linkedin/coral/spark/transformers/HiveUDFTransformer.java`
-- `coral-spark/src/main/java/com/linkedin/coral/spark/transformers/TransportUDFTransformer.java`
+- [`coral-common/src/main/java/com/linkedin/coral/common/transformers/SqlCallTransformer.java`](../coral-common/src/main/java/com/linkedin/coral/common/transformers/SqlCallTransformer.java)
+- [`coral-common/src/main/java/com/linkedin/coral/common/transformers/SqlCallTransformers.java`](../coral-common/src/main/java/com/linkedin/coral/common/transformers/SqlCallTransformers.java)
+- [`coral-common/src/main/java/com/linkedin/coral/common/transformers/SourceOperatorMatchSqlCallTransformer.java`](../coral-common/src/main/java/com/linkedin/coral/common/transformers/SourceOperatorMatchSqlCallTransformer.java)
+- [`coral-common/src/main/java/com/linkedin/coral/common/transformers/OperatorRenameSqlCallTransformer.java`](../coral-common/src/main/java/com/linkedin/coral/common/transformers/OperatorRenameSqlCallTransformer.java)
+- [`coral-common/src/main/java/com/linkedin/coral/common/transformers/JsonTransformSqlCallTransformer.java`](../coral-common/src/main/java/com/linkedin/coral/common/transformers/JsonTransformSqlCallTransformer.java)
+- [`coral-common/src/main/java/com/linkedin/coral/common/utils/TypeDerivationUtil.java`](../coral-common/src/main/java/com/linkedin/coral/common/utils/TypeDerivationUtil.java)
+- [`coral-trino/src/main/java/com/linkedin/coral/trino/rel2trino/CoralToTrinoSqlCallConverter.java`](../coral-trino/src/main/java/com/linkedin/coral/trino/rel2trino/CoralToTrinoSqlCallConverter.java)
+- [`coral-trino/src/main/java/com/linkedin/coral/trino/rel2trino/DataTypeDerivedSqlCallConverter.java`](../coral-trino/src/main/java/com/linkedin/coral/trino/rel2trino/DataTypeDerivedSqlCallConverter.java)
+- [`coral-trino/src/main/java/com/linkedin/coral/trino/rel2trino/transformers/FromUtcTimestampOperatorTransformer.java`](../coral-trino/src/main/java/com/linkedin/coral/trino/rel2trino/transformers/FromUtcTimestampOperatorTransformer.java)
+- [`coral-trino/src/main/java/com/linkedin/coral/trino/rel2trino/transformers/NamedStructToCastTransformer.java`](../coral-trino/src/main/java/com/linkedin/coral/trino/rel2trino/transformers/NamedStructToCastTransformer.java)
+- [`coral-trino/src/main/java/com/linkedin/coral/trino/rel2trino/transformers/CoralRegistryOperatorRenameSqlCallTransformer.java`](../coral-trino/src/main/java/com/linkedin/coral/trino/rel2trino/transformers/CoralRegistryOperatorRenameSqlCallTransformer.java)
+- [`coral-trino/src/main/java/com/linkedin/coral/trino/rel2trino/transformers/HiveUDFTransformer.java`](../coral-trino/src/main/java/com/linkedin/coral/trino/rel2trino/transformers/HiveUDFTransformer.java)
+- [`coral-spark/src/main/java/com/linkedin/coral/spark/CoralToSparkSqlCallConverter.java`](../coral-spark/src/main/java/com/linkedin/coral/spark/CoralToSparkSqlCallConverter.java)
+- [`coral-spark/src/main/java/com/linkedin/coral/spark/transformers/HiveUDFTransformer.java`](../coral-spark/src/main/java/com/linkedin/coral/spark/transformers/HiveUDFTransformer.java)
+- [`coral-spark/src/main/java/com/linkedin/coral/spark/transformers/TransportUDFTransformer.java`](../coral-spark/src/main/java/com/linkedin/coral/spark/transformers/TransportUDFTransformer.java)
 
 ## Read next
 
-- Chapter 08 — coral-spark, the smaller transformer collection (UDF-heavy).
-- Chapter 09 — coral-trino, the larger transformer collection (semantic-rewrite-heavy).
-- Chapter 16 — PR review companion, transformer-specific review checklist.
+- [Chapter 08](08-coral-spark.md) — coral-spark, the smaller transformer collection (UDF-heavy).
+- [Chapter 09](09-coral-trino.md) — coral-trino, the larger transformer collection (semantic-rewrite-heavy).
+- [Chapter 16](16-pr-review-companion.md) — PR review companion, transformer-specific review checklist.

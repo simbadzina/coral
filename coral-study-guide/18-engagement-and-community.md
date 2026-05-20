@@ -81,5 +81,5 @@ The single best signal of "I'm a Coral contributor" is being cc'd on PRs in your
 
 ## Read next
 
-- Chapter 17 — first contributions (the concrete PR ideas that get you started).
-- Chapter 16 — PR review companion (so when you do volunteer to review, you have a checklist).
+- [Chapter 17](17-first-contributions.md) — first contributions (the concrete PR ideas that get you started).
+- [Chapter 16](16-pr-review-companion.md) — PR review companion (so when you do volunteer to review, you have a checklist).

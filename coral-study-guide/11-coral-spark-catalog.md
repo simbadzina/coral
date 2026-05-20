@@ -4,11 +4,11 @@
 
 ## Why this module exists
 
-Chapter 08 walked `CoralSpark.create(RelNode, HiveMetastoreClient)` end to end. That API works when the caller already has the view's `RelNode` in hand — typically because they parsed the view definition out of HMS themselves and ran `HiveToRelConverter.convertView(...)` on it. In a real Spark application that is awkward: a query like `SELECT * FROM v JOIN w ON ...` references views by name; the application doesn't enumerate them ahead of time, and pre-translating every view in the warehouse is not a workable strategy.
+[Chapter 08](08-coral-spark.md) walked `CoralSpark.create(RelNode, HiveMetastoreClient)` end to end. That API works when the caller already has the view's `RelNode` in hand — typically because they parsed the view definition out of HMS themselves and ran `HiveToRelConverter.convertView(...)` on it. In a real Spark application that is awkward: a query like `SELECT * FROM v JOIN w ON ...` references views by name; the application doesn't enumerate them ahead of time, and pre-translating every view in the warehouse is not a workable strategy.
 
 Spark 3.5 added a `ViewCatalog` SPI for exactly this case — it lets a plugin intercept view resolution. `CoralSparkViewCatalog` implements that SPI. The caller writes Spark SQL that references HiveQL (or Trino) views by name; the catalog turns each view into Spark SQL the first time Spark looks it up, registers any UDFs the view depends on, and returns a `View` object Spark can execute. The pre-translation step disappears.
 
-The module is intentionally narrow: one class, `CoralSparkViewCatalog`, plus tests. The translation work lives in `coral-spark` (chapter 08); the catalog only handles the Spark-side glue.
+The module is intentionally narrow: one class, `CoralSparkViewCatalog`, plus tests. The translation work lives in `coral-spark` ([chapter 08](08-coral-spark.md)); the catalog only handles the Spark-side glue.
 
 ## How you plug it in
 
@@ -58,12 +58,12 @@ sequenceDiagram
     Spark-->>User: rows
 ```
 
-The implementation lives in `CoralSparkViewCatalog.loadView(Identifier)` in `coral-spark-catalog/src/main/java/com/linkedin/coral/spark/CoralSparkViewCatalog.java`. The steps:
+The implementation lives in `CoralSparkViewCatalog.loadView(Identifier)` in [`coral-spark-catalog/src/main/java/com/linkedin/coral/spark/CoralSparkViewCatalog.java`](../coral-spark-catalog/src/main/java/com/linkedin/coral/spark/CoralSparkViewCatalog.java). The steps:
 
 1. **Resolve from HMS.** Build a `HiveMscAdapter` over a fresh `HiveMetaStoreClient`. Pull the table; if it isn't a `VIRTUAL_VIEW`, throw `NoSuchElementException`. Real tables go through `loadTable`, which delegates to the session catalog.
-2. **Derive the Avro schema.** Hand the adapter to `ViewToAvroSchemaConverter.create(adapter)` and call `toAvroSchema(db, tbl, false, false)`. Then re-parse the schema string with validation off and convert it to a Catalyst `DataType` via `SchemaConverters.toSqlType(...)`. The re-parse exists so Spark's Avro reader sees the schema as a string and preserves logical types (timestamp-millis, decimal, etc.); calling `SchemaConverters.toSqlType` on the in-memory `Schema` object directly would erase them. Chapter 10 covers `ViewToAvroSchemaConverter`.
-3. **Parse the view into IR.** `HiveToRelConverter(adapter).convertView(db, tbl)` runs the standard Hive frontend (chapter 06) and returns the Coral IR `RelNode`.
-4. **Translate to Spark SQL.** `CoralSpark.create(relNode, avroSchema, adapter)` — the schema-aware overload from chapter 08. Passing the Avro schema means `AddExplicitAlias` aligns the outer `SELECT` aliases to the Avro field names, so Spark's output columns match what `ViewToAvroSchemaConverter` produced.
+2. **Derive the Avro schema.** Hand the adapter to `ViewToAvroSchemaConverter.create(adapter)` and call `toAvroSchema(db, tbl, false, false)`. Then re-parse the schema string with validation off and convert it to a Catalyst `DataType` via `SchemaConverters.toSqlType(...)`. The re-parse exists so Spark's Avro reader sees the schema as a string and preserves logical types (timestamp-millis, decimal, etc.); calling `SchemaConverters.toSqlType` on the in-memory `Schema` object directly would erase them. [Chapter 10](10-coral-schema.md) covers `ViewToAvroSchemaConverter`.
+3. **Parse the view into IR.** `HiveToRelConverter(adapter).convertView(db, tbl)` runs the standard Hive frontend ([chapter 06](06-coral-hive.md)) and returns the Coral IR `RelNode`.
+4. **Translate to Spark SQL.** `CoralSpark.create(relNode, avroSchema, adapter)` — the schema-aware overload from [chapter 08](08-coral-spark.md). Passing the Avro schema means `AddExplicitAlias` aligns the outer `SELECT` aliases to the Avro field names, so Spark's output columns match what `ViewToAvroSchemaConverter` produced.
 5. **Sanity-parse the output.** `SparkSession.active().sessionState().sqlParser().parsePlan(sparkSql)`. A `ParseException` here means Coral emitted Spark SQL the running Spark version doesn't accept — the method wraps it in `RuntimeException` so the failure is visible at view-load time, not query-execute time.
 6. **Register UDFs.** `registerUDFs(coralSpark.getSparkUDFInfoList(), db + "." + tbl)`. See below.
 7. **Return a `View`.** An anonymous `org.apache.spark.sql.connector.catalog.View` whose `query()` returns the translated Spark SQL, `schema()` returns the Catalyst `StructType` derived in step 2, and `properties()` exposes the registered UDF names through `CatalogTable.VIEW_REFERRED_TEMP_FUNCTION_NAMES` so Spark's analyzer treats them as temporary functions the view depends on.
@@ -97,7 +97,7 @@ The split is the cleanest way to plug into `spark_catalog`: tables already work 
 
 ## UDF registration
 
-`CoralSpark.create` returns a `List<SparkUDFInfo>` describing every UDF the translated SQL references — chapter 08 covers how the list gets assembled. `CoralSparkViewCatalog.registerUDFs` is the consumer.
+`CoralSpark.create` returns a `List<SparkUDFInfo>` describing every UDF the translated SQL references — [chapter 08](08-coral-spark.md) covers how the list gets assembled. `CoralSparkViewCatalog.registerUDFs` is the consumer.
 
 The method takes the union of every `artifactoryUrls` entry across all UDF infos, wraps each as a `FunctionResource("jar", url)`, and calls `sessionCatalog.loadFunctionResources(...)` once. That kicks Spark's `SessionCatalog` to fetch and add each Ivy/Maven JAR to the running classpath. The `synchronized (sessionCatalog)` block guards the call because `SessionCatalog` is not thread-safe and `loadView` may run concurrently from multiple query threads.
 
@@ -108,16 +108,16 @@ Then for each `SparkUDFInfo` the method dispatches on `udfType`:
 - **`TRANSPORTABLE_UDF`.** Load the class, find its static `register(String)` method, invoke it with the short function name. Transport UDFs ship with a `register` entry point precisely so frameworks can wire them up without knowing their inner shape.
 - **Anything else** (e.g., `HIVE_BUILTIN_FUNCTION`) throws `RuntimeException`. The catalog doesn't register built-ins because Spark already has them.
 
-The split between Spark-native and Hive-shim registration for `HIVE_CUSTOM_UDF` matters because Coral's `HiveUDFTransformer` (chapter 08) tags Transport UDFs that arrived via a Hive class name as `HIVE_CUSTOM_UDF` — they look like Hive UDFs to Coral but they execute as Spark UDFs at runtime. The reflection check disambiguates after the fact.
+The split between Spark-native and Hive-shim registration for `HIVE_CUSTOM_UDF` matters because Coral's `HiveUDFTransformer` ([chapter 08](08-coral-spark.md)) tags Transport UDFs that arrived via a Hive class name as `HIVE_CUSTOM_UDF` — they look like Hive UDFs to Coral but they execute as Spark UDFs at runtime. The reflection check disambiguates after the fact.
 
-Chapter 15 covers the Transport UDF framework in detail.
+[Chapter 15](15-linkedin-specifics.md) covers the Transport UDF framework in detail.
 
 ## Test surface
 
 This module hosts the closest thing the Coral repo has to end-to-end tests. Both test classes spin up a real `SparkSession` in `local[2]` mode against an embedded Hive Metastore (`TestHiveMetastore`, a Thrift HMS backed by Derby living entirely in a temp directory).
 
 - **`CoralSparkViewCatalogTest`** — registers `CoralSparkViewCatalog` as `spark_catalog`, creates Hive tables and views through plain `spark.sql(...)`, then asserts that `spark.table("default.<view>").schema()` matches the expected Catalyst `StructType`. Each `spark.table(...)` call routes view resolution through `CoralSparkViewCatalog.loadView`, so a passing test exercises the full Hive-SQL → Coral IR → Spark SQL → executed-by-Spark pipeline. Coverage includes joins, lateral-view explode, subqueries, aggregations, nested struct access, `NAMED_STRUCT`, and a `dali_udf` view (`testViewQueryWithUDF`) that confirms the UDF gets registered in `sessionState().catalog()` after the view loads.
-- **`TrinoToSparkCatalogTest`** — exercises the Trino→IR→Spark path explicitly. It parses Trino SQL through `TrinoToRelConverter` (chapter 09), runs it through `CoralSpark.create`, executes the resulting Spark SQL, and validates the output schema. Note the test's docstring: `TrinoToRelConverter` uppercases identifiers before parsing, so column aliases come back uppercase — the assertions encode this quirk.
+- **`TrinoToSparkCatalogTest`** — exercises the Trino→IR→Spark path explicitly. It parses Trino SQL through `TrinoToRelConverter` ([chapter 09](09-coral-trino.md)), runs it through `CoralSpark.create`, executes the resulting Spark SQL, and validates the output schema. Note the test's docstring: `TrinoToRelConverter` uppercases identifiers before parsing, so column aliases come back uppercase — the assertions encode this quirk.
 
 Both tests use `TestHiveMetastore.INSTANCE`, a singleton that starts its Thrift server in `@BeforeSuite`. The Gradle build sets `hive.cbo.enable=false` and `-noverify` because Hive 2.3.9's `CalcitePlanner` clashes with the Calcite 1.21 the rest of Coral pulls in, and because `hive-exec-core` ships a signed Janino that conflicts with Spark's.
 
@@ -139,17 +139,17 @@ This module is one of the newer Coral pieces — all four PRs landed inside the 
 
 ## Files this chapter discusses
 
-- `coral-spark-catalog/README.md`
-- `coral-spark-catalog/build.gradle`
-- `coral-spark-catalog/src/main/java/com/linkedin/coral/spark/CoralSparkViewCatalog.java`
-- `coral-spark-catalog/src/test/java/com/linkedin/coral/spark/CoralSparkViewCatalogTest.java`
-- `coral-spark-catalog/src/test/java/com/linkedin/coral/spark/TrinoToSparkCatalogTest.java`
-- `coral-spark-catalog/src/test/java/com/linkedin/coral/spark/TestHiveMetastore.java`
-- `coral-spark-catalog/src/test/java/com/linkedin/coral/spark/CoralTestUDF.java`
+- [`coral-spark-catalog/README.md`](../coral-spark-catalog/README.md)
+- [`coral-spark-catalog/build.gradle`](../coral-spark-catalog/build.gradle)
+- [`coral-spark-catalog/src/main/java/com/linkedin/coral/spark/CoralSparkViewCatalog.java`](../coral-spark-catalog/src/main/java/com/linkedin/coral/spark/CoralSparkViewCatalog.java)
+- [`coral-spark-catalog/src/test/java/com/linkedin/coral/spark/CoralSparkViewCatalogTest.java`](../coral-spark-catalog/src/test/java/com/linkedin/coral/spark/CoralSparkViewCatalogTest.java)
+- [`coral-spark-catalog/src/test/java/com/linkedin/coral/spark/TrinoToSparkCatalogTest.java`](../coral-spark-catalog/src/test/java/com/linkedin/coral/spark/TrinoToSparkCatalogTest.java)
+- [`coral-spark-catalog/src/test/java/com/linkedin/coral/spark/TestHiveMetastore.java`](../coral-spark-catalog/src/test/java/com/linkedin/coral/spark/TestHiveMetastore.java)
+- [`coral-spark-catalog/src/test/java/com/linkedin/coral/spark/CoralTestUDF.java`](../coral-spark-catalog/src/test/java/com/linkedin/coral/spark/CoralTestUDF.java)
 
 ## Read next
 
-- Chapter 08 — `coral-spark`, the translation pipeline this module wraps.
-- Chapter 10 — `coral-schema` and `ViewToAvroSchemaConverter`, which supplies the Catalyst schema.
-- Chapter 15 — Transport UDFs and the LinkedIn-specific UDF mechanics `registerUDFs` dispatches on.
-- Chapter 16 — PR review companion; the cheat sheet for this module is short, but the SPI contract is worth a second look.
+- [Chapter 08](08-coral-spark.md) — `coral-spark`, the translation pipeline this module wraps.
+- [Chapter 10](10-coral-schema.md) — `coral-schema` and `ViewToAvroSchemaConverter`, which supplies the Catalyst schema.
+- [Chapter 15](15-linkedin-specifics.md) — Transport UDFs and the LinkedIn-specific UDF mechanics `registerUDFs` dispatches on.
+- [Chapter 16](16-pr-review-companion.md) — PR review companion; the cheat sheet for this module is short, but the SPI contract is worth a second look.

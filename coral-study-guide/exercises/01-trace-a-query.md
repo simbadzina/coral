@@ -2,11 +2,11 @@
 
 ## Goal
 
-Watch one Hive query move through every IR stage by stepping a live debugger from `ParseTreeBuilder` to `CoralSpark.create`. Chapter 03 narrates the pipeline; this exercise puts your hands on it. At the end you should be able to predict, for any future PR, which stage the change lands in by reading the diff.
+Watch one Hive query move through every IR stage by stepping a live debugger from `ParseTreeBuilder` to `CoralSpark.create`. [Chapter 03](../03-pipeline-deep-dive.md) narrates the pipeline; this exercise puts your hands on it. At the end you should be able to predict, for any future PR, which stage the change lands in by reading the diff.
 
 ## Prerequisites
 
-- Read chapter 03 (the pipeline deep dive). Keep the diagram open in a second window.
+- Read [chapter 03](../03-pipeline-deep-dive.md) (the pipeline deep dive). Keep the diagram open in a second window.
 - IntelliJ IDEA with the `coral` project imported as a Gradle project.
 - The ANTLR-generated parser sources must exist on disk; run `./gradlew :coral-hive:compileTestJava` once before opening any parser file in the IDE. Without this the `com.linkedin.coral.hive.hive2rel.parsetree.parser.HiveParser` class will not resolve and breakpoints in `ParseTreeBuilder` will look broken.
 
@@ -20,7 +20,7 @@ The `foo` table is set up by `coral-hive/src/test/java/com/linkedin/coral/hive/h
 
 ## Steps
 
-1. **Add a scratch test.** Open `coral-hive/src/test/java/com/linkedin/coral/hive/hive2rel/HiveToRelConverterTest.java`. Add a `@Test` method at the bottom of the class:
+1. **Add a scratch test.** Open [`coral-hive/src/test/java/com/linkedin/coral/hive/hive2rel/HiveToRelConverterTest.java`](../../coral-hive/src/test/java/com/linkedin/coral/hive/hive2rel/HiveToRelConverterTest.java). Add a `@Test` method at the bottom of the class:
 
    ```java
    @Test
@@ -33,9 +33,9 @@ The `foo` table is set up by `coral-hive/src/test/java/com/linkedin/coral/hive/h
 
    The `converter` field is the shared `HiveToRelConverter` from `ToRelConverterTestUtils`. Right-click the method in IntelliJ and choose "Debug 'testTrace'."
 
-2. **Breakpoint 1 — parse entry.** Set a breakpoint on `CoralParseDriver.parse(String)` in `coral-hive/src/main/java/com/linkedin/coral/hive/hive2rel/parsetree/parser/CoralParseDriver.java`. When it hits, evaluate the `command` parameter; that is the SQL string entering the pipeline. Step over until the method returns and inspect the returned `ASTNode` — note that every node has a numeric `type` field (a `HiveParser.TOK_*` constant) and a `text` string. There is no polymorphism. Then resume.
+2. **Breakpoint 1 — parse entry.** Set a breakpoint on `CoralParseDriver.parse(String)` in [`coral-hive/src/main/java/com/linkedin/coral/hive/hive2rel/parsetree/parser/CoralParseDriver.java`](../../coral-hive/src/main/java/com/linkedin/coral/hive/hive2rel/parsetree/parser/CoralParseDriver.java). When it hits, evaluate the `command` parameter; that is the SQL string entering the pipeline. Step over until the method returns and inspect the returned `ASTNode` — note that every node has a numeric `type` field (a `HiveParser.TOK_*` constant) and a `text` string. There is no polymorphism. Then resume.
 
-3. **Breakpoint 2 — ASTNode to SqlNode.** Set a breakpoint on `ParseTreeBuilder.process(String, Table)` in `coral-hive/src/main/java/com/linkedin/coral/hive/hive2rel/parsetree/ParseTreeBuilder.java`. When it hits, step into `processAST` and then `visit(node, ctx)`. The dispatcher in `AbstractASTVisitor` switches on `node.getType()`; for our query the root is `TOK_QUERY`, which routes to `visitQuery`, which descends into `visitSelect`. When `process` returns, evaluate the returned `SqlNode` with `node.toString()` in the Evaluate window — you should see:
+3. **Breakpoint 2 — ASTNode to SqlNode.** Set a breakpoint on `ParseTreeBuilder.process(String, Table)` in [`coral-hive/src/main/java/com/linkedin/coral/hive/hive2rel/parsetree/ParseTreeBuilder.java`](../../coral-hive/src/main/java/com/linkedin/coral/hive/hive2rel/parsetree/ParseTreeBuilder.java). When it hits, step into `processAST` and then `visit(node, ctx)`. The dispatcher in `AbstractASTVisitor` switches on `node.getType()`; for our query the root is `TOK_QUERY`, which routes to `visitQuery`, which descends into `visitSelect`. When `process` returns, evaluate the returned `SqlNode` with `node.toString()` in the Evaluate window — you should see:
 
    ```sql
    SELECT `a`, `lower`(`b`) AS `lower_b`
@@ -43,13 +43,13 @@ The `foo` table is set up by `coral-hive/src/test/java/com/linkedin/coral/hive/h
    WHERE `c` > 1
    ```
 
-   This is the post-`ParseTreeBuilder` tree: structured `SqlNode`s, unvalidated, untyped, with `lower` already bound to `SqlStdOperatorTable.LOWER` via `HiveFunctionResolver`. Set a sub-breakpoint inside `ParseTreeBuilder.visitFunctionInternal` if you want to watch the function-resolution step described in chapter 06.
+   This is the post-`ParseTreeBuilder` tree: structured `SqlNode`s, unvalidated, untyped, with `lower` already bound to `SqlStdOperatorTable.LOWER` via `HiveFunctionResolver`. Set a sub-breakpoint inside `ParseTreeBuilder.visitFunctionInternal` if you want to watch the function-resolution step described in [chapter 06](../06-coral-hive.md).
 
-4. **Breakpoint 3 — normalization shuttle.** Set a breakpoint on the `HiveSqlNodeToCoralSqlNodeConverter` constructor in `coral-hive/src/main/java/com/linkedin/coral/hive/hive2rel/HiveSqlNodeToCoralSqlNodeConverter.java`. When it hits, step until `sqlNode.accept(this)` returns inside `HiveToRelConverter.toSqlNode`. For this query the shuttle's only registered transformer (`ShiftArrayIndexTransformer`) does not fire — confirm by evaluating the returned `SqlNode` and seeing it unchanged from step 3.
+4. **Breakpoint 3 — normalization shuttle.** Set a breakpoint on the `HiveSqlNodeToCoralSqlNodeConverter` constructor in [`coral-hive/src/main/java/com/linkedin/coral/hive/hive2rel/HiveSqlNodeToCoralSqlNodeConverter.java`](../../coral-hive/src/main/java/com/linkedin/coral/hive/hive2rel/HiveSqlNodeToCoralSqlNodeConverter.java). When it hits, step until `sqlNode.accept(this)` returns inside `HiveToRelConverter.toSqlNode`. For this query the shuttle's only registered transformer (`ShiftArrayIndexTransformer`) does not fire — confirm by evaluating the returned `SqlNode` and seeing it unchanged from step 3.
 
-5. **Breakpoint 4 — validation.** Set a breakpoint on `HiveSqlValidator.validate(SqlNode)` in `coral-hive/src/main/java/com/linkedin/coral/hive/hive2rel/HiveSqlValidator.java`. When it returns, evaluate `getValidatedNodeType(sqlNode)` — you should get a `RecordType(INTEGER a, VARCHAR(30) lower_b)`. The tree is now fully typed; `lower(b)` infers `VARCHAR(30)` because Hive's `LOWER` is `ARG0_NULLABLE` over a `VARCHAR(30)` column.
+5. **Breakpoint 4 — validation.** Set a breakpoint on `HiveSqlValidator.validate(SqlNode)` in [`coral-hive/src/main/java/com/linkedin/coral/hive/hive2rel/HiveSqlValidator.java`](../../coral-hive/src/main/java/com/linkedin/coral/hive/hive2rel/HiveSqlValidator.java). When it returns, evaluate `getValidatedNodeType(sqlNode)` — you should get a `RecordType(INTEGER a, VARCHAR(30) lower_b)`. The tree is now fully typed; `lower(b)` infers `VARCHAR(30)` because Hive's `LOWER` is `ARG0_NULLABLE` over a `VARCHAR(30)` column.
 
-6. **Breakpoint 5 — SqlNode to RelNode.** Set a breakpoint on `HiveSqlToRelConverter.convertQuery(SqlNode, boolean, boolean)` in `coral-hive/src/main/java/com/linkedin/coral/hive/hive2rel/HiveSqlToRelConverter.java`. Step out, then evaluate `RelOptUtil.toString(rel)` on the returned root. You should see:
+6. **Breakpoint 5 — SqlNode to RelNode.** Set a breakpoint on `HiveSqlToRelConverter.convertQuery(SqlNode, boolean, boolean)` in [`coral-hive/src/main/java/com/linkedin/coral/hive/hive2rel/HiveSqlToRelConverter.java`](../../coral-hive/src/main/java/com/linkedin/coral/hive/hive2rel/HiveSqlToRelConverter.java). Step out, then evaluate `RelOptUtil.toString(rel)` on the returned root. You should see:
 
    ```
    LogicalProject(a=[$0], lower_b=[LOWER($1)])
@@ -66,7 +66,7 @@ The `foo` table is set up by `coral-hive/src/test/java/com/linkedin/coral/hive/h
    System.out.println(spark.getSparkSql());
    ```
 
-   Set breakpoints on `IRRelToSparkRelTransformer.transform`, `CoralRelToSqlNodeConverter` (entry), `CoralToSparkSqlCallConverter.visit(SqlCall)`, and `SparkSqlRewriter.write`. You will walk stages 6-7 from chapter 03 in the same debugger session.
+   Set breakpoints on `IRRelToSparkRelTransformer.transform`, `CoralRelToSqlNodeConverter` (entry), `CoralToSparkSqlCallConverter.visit(SqlCall)`, and `SparkSqlRewriter.write`. You will walk stages 6-7 from [chapter 03](../03-pipeline-deep-dive.md) in the same debugger session.
 
 ## Checkpoints
 
@@ -77,7 +77,7 @@ You have done the exercise correctly when, for the example query, your debugger 
 - After step 4: same shape, every `SqlNode` annotated with a `RelDataType` retrievable via the validator.
 - After step 5: the three-line `LogicalProject / LogicalFilter / LogicalTableScan` plan above.
 
-If the RelNode plan you see does not match, the most common cause is forgetting `default.` — `convertSql` resolves bare table names against `hive.default`, but `foo` and `default.foo` produce the same plan, while `db.tbl` (the chapter 03 example) does not exist in the test catalog and will throw.
+If the RelNode plan you see does not match, the most common cause is forgetting `default.` — `convertSql` resolves bare table names against `hive.default`, but `foo` and `default.foo` produce the same plan, while `db.tbl` (the [chapter 03](../03-pipeline-deep-dive.md) example) does not exist in the test catalog and will throw.
 
 ## What you learn
 

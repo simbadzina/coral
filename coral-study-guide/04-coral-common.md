@@ -16,7 +16,7 @@ graph TD
     Common --> Utils["utils/<br/>TypeDerivationUtil,<br/>RelDataTypeToHiveTypeStringConverter"]
 ```
 
-The top-level package holds the Calcite-facing classes. `catalog/` and `types/` are the modern abstractions over LinkedIn's table metadata and dialect-neutral types (chapter 05 is their chapter). `functions/` collects Calcite `SqlOperator` subclasses Coral defines for its own intermediate-representation needs. `transformers/` is the `SqlCallTransformer` framework that backends compose into chains (chapter 07 is its chapter). `calcite/` and `utils/` are thin helpers.
+The top-level package holds the Calcite-facing classes. `catalog/` and `types/` are the modern abstractions over LinkedIn's table metadata and dialect-neutral types ([chapter 05](05-type-system-and-catalog.md) is their chapter). `functions/` collects Calcite `SqlOperator` subclasses Coral defines for its own intermediate-representation needs. `transformers/` is the `SqlCallTransformer` framework that backends compose into chains ([chapter 07](07-transformers-pattern.md) is its chapter). `calcite/` and `utils/` are thin helpers.
 
 ## The abstract converter template
 
@@ -158,7 +158,7 @@ The three `*CalciteTableAdapter` classes implement Calcite's `ScannableTable` so
 
 - **`HiveCalciteTableAdapter`** wraps an HMS `org.apache.hadoop.hive.metastore.api.Table`. Beyond `getRowType(...)` it owns two methods that exist specifically for Dali integration: `getDaliFunctionParams()` reads the `'functions'` TBLPROPERTY (`func_name:com.linkedin.ClassName` pairs), and `getDaliUdfDependencies()` reads the `'dependencies'` TBLPROPERTY (Ivy coordinates). `HiveFunctionResolver` and `ParseTreeBuilder` in coral-hive read these to resolve Dali UDF calls when expanding a view.
 
-  `getRowType(...)` in this adapter is currently in shadow-validation mode: it always returns the legacy `TypeConverter`-based path (`Hive TypeInfo` → Calcite directly), but it also runs the two-stage path (`Hive` → `CoralDataType` → Calcite via `CoralTypeToRelDataTypeConverter`) and logs a warning if the two disagree. The two-stage path will eventually become primary; see chapter 05 for the type system that path exercises.
+  `getRowType(...)` in this adapter is currently in shadow-validation mode: it always returns the legacy `TypeConverter`-based path (`Hive TypeInfo` → Calcite directly), but it also runs the two-stage path (`Hive` → `CoralDataType` → Calcite via `CoralTypeToRelDataTypeConverter`) and logs a warning if the two disagree. The two-stage path will eventually become primary; see [chapter 05](05-type-system-and-catalog.md) for the type system that path exercises.
 
 - **`HiveCalciteViewAdapter`** extends `HiveCalciteTableAdapter` and adds `TranslatableTable.toRel(...)`, which calls `relContext.expandView(rowType, hiveTable.getViewExpandedText(), schemaPath, [tableName])`. That is what makes a `SELECT * FROM dali_view` get inlined into the caller's plan tree.
 
@@ -172,59 +172,59 @@ Coral overrides three Calcite classes inside coral-common to align Calcite's def
 
 **`HiveUncollect` extends Calcite's `Uncollect`.** Calcite's default `Uncollect` flattens `array<struct<a, b>>` into two separate output columns; Hive returns a single column of `struct<a, b>` per row. `HiveUncollect.deriveRowType()` keeps the struct intact for array-of-struct, defers to the parent for map operands (still emitting `KEY`/`VALUE` columns), and adds an `ORDINALITY` column when `withOrdinality` is set. The class exposes a `copy(RelDataType)` overload that `HiveRelBuilder.rename(...)` calls during the rename special-case.
 
-**`HiveTypeSystem` extends `RelDataTypeSystemImpl`.** It defines Hive-faithful precision/scale rules — `DECIMAL` maxes at precision 38, scale 38; `VARCHAR` default precision is 65535; `TIMESTAMP` precision tops at 9. The validator uses these for type inference. Chapter 05 walks the type system in depth and connects it to `CoralDataType` and the conversion utilities; this chapter only flags that `ToRelConverter` installs `new HiveTypeSystem()` into every `FrameworkConfig`.
+**`HiveTypeSystem` extends `RelDataTypeSystemImpl`.** It defines Hive-faithful precision/scale rules — `DECIMAL` maxes at precision 38, scale 38; `VARCHAR` default precision is 65535; `TIMESTAMP` precision tops at 9. The validator uses these for type inference. [Chapter 05](05-type-system-and-catalog.md) walks the type system in depth and connects it to `CoralDataType` and the conversion utilities; this chapter only flags that `ToRelConverter` installs `new HiveTypeSystem()` into every `FrameworkConfig`.
 
-Note that `HiveRexBuilder` is not in coral-common — it lives in `coral-hive` at `coral-hive/src/main/java/com/linkedin/coral/hive/hive2rel/HiveRexBuilder.java` and is wired in only by `HiveToRelConverter.getSqlToRelConverter()`. `TrinoToRelConverter` uses the default `RexBuilder` from the rel builder.
+Note that `HiveRexBuilder` is not in coral-common — it lives in `coral-hive` at [`coral-hive/src/main/java/com/linkedin/coral/hive/hive2rel/HiveRexBuilder.java`](../coral-hive/src/main/java/com/linkedin/coral/hive/hive2rel/HiveRexBuilder.java) and is wired in only by `HiveToRelConverter.getSqlToRelConverter()`. `TrinoToRelConverter` uses the default `RexBuilder` from the rel builder.
 
 ## Cross-cutting machinery
 
 A few classes don't slot into the converter/schema/extension story but are still in coral-common because every other module needs them.
 
-**`FuzzyUnionSqlRewriter`** is a `SqlShuttle` that walks a `SqlNode` AST and, for every `SqlKind.UNION` node, computes the intersection of branch schemas (the "common subset" of columns) and wraps each branch in a generated `SELECT ... generic_project(col, 'col', hiveTypeString) AS col ... FROM (branch) AS table_name`. The motivation is LinkedIn-specific: a Dali view defined as `SELECT * FROM a UNION ALL SELECT * FROM b` deploys when `a` and `b` have identical struct schemas, but Avro evolution can add fields to `b` later and break the view at query time. The rewriter restores the deployed common schema using `GenericProjectFunction` as a placeholder UDF that backends downstream (`coral-spark`, `coral-trino`) resolve into engine-specific SQL. Chapter 15 covers the full fuzzy-union story including how engines materialize `generic_project`.
+**`FuzzyUnionSqlRewriter`** is a `SqlShuttle` that walks a `SqlNode` AST and, for every `SqlKind.UNION` node, computes the intersection of branch schemas (the "common subset" of columns) and wraps each branch in a generated `SELECT ... generic_project(col, 'col', hiveTypeString) AS col ... FROM (branch) AS table_name`. The motivation is LinkedIn-specific: a Dali view defined as `SELECT * FROM a UNION ALL SELECT * FROM b` deploys when `a` and `b` have identical struct schemas, but Avro evolution can add fields to `b` later and break the view at query time. The rewriter restores the deployed common schema using `GenericProjectFunction` as a placeholder UDF that backends downstream (`coral-spark`, `coral-trino`) resolve into engine-specific SQL. [Chapter 15](15-linkedin-specifics.md) covers the full fuzzy-union story including how engines materialize `generic_project`.
 
 **The `functions/` package** holds the `SqlOperator` subclasses Coral defines for its own IR. `Function` is the plain wrapper carrying a function name plus its `SqlOperator` (built by `ParseTreeBuilder` when it resolves a Hive function call). `CoralSqlUnnestOperator` overrides Calcite's `SqlUnnestOperator` so that unnesting an `array<struct>` returns one struct-typed column instead of fanning out struct fields — the unparse-time companion of `HiveUncollect`. `FunctionFieldReferenceOperator` is the `.` operator used to write `f(x).field` for struct-returning functions, in the form `SqlBinaryOperator` with `SqlKind.DOT`. `GenericProjectFunction` is the placeholder UDF `FuzzyUnionSqlRewriter` emits. Other entries (`FunctionRegistry`, `FunctionReturnTypes`, `OperandTypeInference`, `SameOperandTypeExceptFirstOperandChecker`) are small utilities supporting the four main types.
 
-**The `transformers/` package** holds the `SqlCallTransformer` framework. `SqlCallTransformer` is the abstract base (`boolean condition(SqlCall)` + `SqlCall transform(SqlCall)`); `SqlCallTransformers` is the ordered container that applies them in sequence. Three generic implementations sit alongside the base: `OperatorRenameSqlCallTransformer` (rename one operator to another), `SourceOperatorMatchSqlCallTransformer` (match by source-side operator name), and `JsonTransformSqlCallTransformer` (data-driven from a JSON spec). Every backend assembles its own chain of these plus dialect-specific subclasses. Chapter 07 walks the framework end-to-end.
+**The `transformers/` package** holds the `SqlCallTransformer` framework. `SqlCallTransformer` is the abstract base (`boolean condition(SqlCall)` + `SqlCall transform(SqlCall)`); `SqlCallTransformers` is the ordered container that applies them in sequence. Three generic implementations sit alongside the base: `OperatorRenameSqlCallTransformer` (rename one operator to another), `SourceOperatorMatchSqlCallTransformer` (match by source-side operator name), and `JsonTransformSqlCallTransformer` (data-driven from a JSON spec). Every backend assembles its own chain of these plus dialect-specific subclasses. [Chapter 07](07-transformers-pattern.md) walks the framework end-to-end.
 
-**The `catalog/` package** holds the `CoralCatalog` interface and the `CoralTable` hierarchy (`HiveTable`, `IcebergTable`, plus `IcebergHiveTableConverter` and the `TableType` enum). This is the modern abstraction over LinkedIn's table metadata. New code uses `CoralCatalog`; deprecated code still uses `HiveMetastoreClient`. Chapter 05 covers the catalog and types in detail.
+**The `catalog/` package** holds the `CoralCatalog` interface and the `CoralTable` hierarchy (`HiveTable`, `IcebergTable`, plus `IcebergHiveTableConverter` and the `TableType` enum). This is the modern abstraction over LinkedIn's table metadata. New code uses `CoralCatalog`; deprecated code still uses `HiveMetastoreClient`. [Chapter 05](05-type-system-and-catalog.md) covers the catalog and types in detail.
 
-**The `types/` package** holds the `CoralDataType` hierarchy — a dialect-neutral type representation independent of both Calcite's `RelDataType` (which carries framework state) and Hive's `TypeInfo` (which carries Hadoop dependencies). Chapter 05 covers the types and their conversion utilities.
+**The `types/` package** holds the `CoralDataType` hierarchy — a dialect-neutral type representation independent of both Calcite's `RelDataType` (which carries framework state) and Hive's `TypeInfo` (which carries Hadoop dependencies). [Chapter 05](05-type-system-and-catalog.md) covers the types and their conversion utilities.
 
 **`utils/` and `calcite/`** are small helper packages. `TypeDerivationUtil` lets a transformer ask "what would Calcite infer as the type of this `SqlCall`?" without re-running the whole validator. `RelDataTypeToHiveTypeStringConverter` produces the Hive type string that `GenericProjectFunction` embeds in its third operand. `CalciteUtil` wraps `SqlParser` with Coral's preferred parser config (Oracle 10 conformance, case-insensitive, unchanged casing).
 
 ## Files this chapter discusses
 
-- `coral-common/src/main/java/com/linkedin/coral/common/ToRelConverter.java`
-- `coral-common/src/main/java/com/linkedin/coral/common/HiveSchema.java`
-- `coral-common/src/main/java/com/linkedin/coral/common/HiveDbSchema.java`
-- `coral-common/src/main/java/com/linkedin/coral/common/CoralRootSchema.java`
-- `coral-common/src/main/java/com/linkedin/coral/common/CoralDatabaseSchema.java`
-- `coral-common/src/main/java/com/linkedin/coral/common/LocalMetastoreHiveSchema.java`
-- `coral-common/src/main/java/com/linkedin/coral/common/HiveCalciteTableAdapter.java`
-- `coral-common/src/main/java/com/linkedin/coral/common/HiveCalciteViewAdapter.java`
-- `coral-common/src/main/java/com/linkedin/coral/common/IcebergCalciteTableAdapter.java`
-- `coral-common/src/main/java/com/linkedin/coral/common/HiveRelBuilder.java`
-- `coral-common/src/main/java/com/linkedin/coral/common/HiveUncollect.java`
-- `coral-common/src/main/java/com/linkedin/coral/common/HiveTypeSystem.java`
-- `coral-common/src/main/java/com/linkedin/coral/common/CoralJavaTypeFactoryImpl.java`
-- `coral-common/src/main/java/com/linkedin/coral/common/HiveMetastoreClient.java`
-- `coral-common/src/main/java/com/linkedin/coral/common/HiveMscAdapter.java`
-- `coral-common/src/main/java/com/linkedin/coral/common/FuzzyUnionSqlRewriter.java`
-- `coral-common/src/main/java/com/linkedin/coral/common/TypeConverter.java`
-- `coral-common/src/main/java/com/linkedin/coral/common/functions/Function.java`
-- `coral-common/src/main/java/com/linkedin/coral/common/functions/CoralSqlUnnestOperator.java`
-- `coral-common/src/main/java/com/linkedin/coral/common/functions/FunctionFieldReferenceOperator.java`
-- `coral-common/src/main/java/com/linkedin/coral/common/functions/GenericProjectFunction.java`
-- `coral-common/src/main/java/com/linkedin/coral/common/transformers/SqlCallTransformer.java`
-- `coral-common/src/main/java/com/linkedin/coral/common/transformers/SqlCallTransformers.java`
-- `coral-common/src/main/java/com/linkedin/coral/common/calcite/CalciteUtil.java`
-- `coral-common/src/main/java/com/linkedin/coral/common/utils/TypeDerivationUtil.java`
-- `coral-common/src/main/java/com/linkedin/coral/common/utils/RelDataTypeToHiveTypeStringConverter.java`
-- `coral-hive/src/main/java/com/linkedin/coral/hive/hive2rel/HiveToRelConverter.java`
-- `coral-trino/src/main/java/com/linkedin/coral/trino/trino2rel/TrinoToRelConverter.java`
+- [`coral-common/src/main/java/com/linkedin/coral/common/ToRelConverter.java`](../coral-common/src/main/java/com/linkedin/coral/common/ToRelConverter.java)
+- [`coral-common/src/main/java/com/linkedin/coral/common/HiveSchema.java`](../coral-common/src/main/java/com/linkedin/coral/common/HiveSchema.java)
+- [`coral-common/src/main/java/com/linkedin/coral/common/HiveDbSchema.java`](../coral-common/src/main/java/com/linkedin/coral/common/HiveDbSchema.java)
+- [`coral-common/src/main/java/com/linkedin/coral/common/CoralRootSchema.java`](../coral-common/src/main/java/com/linkedin/coral/common/CoralRootSchema.java)
+- [`coral-common/src/main/java/com/linkedin/coral/common/CoralDatabaseSchema.java`](../coral-common/src/main/java/com/linkedin/coral/common/CoralDatabaseSchema.java)
+- [`coral-common/src/main/java/com/linkedin/coral/common/LocalMetastoreHiveSchema.java`](../coral-common/src/main/java/com/linkedin/coral/common/LocalMetastoreHiveSchema.java)
+- [`coral-common/src/main/java/com/linkedin/coral/common/HiveCalciteTableAdapter.java`](../coral-common/src/main/java/com/linkedin/coral/common/HiveCalciteTableAdapter.java)
+- [`coral-common/src/main/java/com/linkedin/coral/common/HiveCalciteViewAdapter.java`](../coral-common/src/main/java/com/linkedin/coral/common/HiveCalciteViewAdapter.java)
+- [`coral-common/src/main/java/com/linkedin/coral/common/IcebergCalciteTableAdapter.java`](../coral-common/src/main/java/com/linkedin/coral/common/IcebergCalciteTableAdapter.java)
+- [`coral-common/src/main/java/com/linkedin/coral/common/HiveRelBuilder.java`](../coral-common/src/main/java/com/linkedin/coral/common/HiveRelBuilder.java)
+- [`coral-common/src/main/java/com/linkedin/coral/common/HiveUncollect.java`](../coral-common/src/main/java/com/linkedin/coral/common/HiveUncollect.java)
+- [`coral-common/src/main/java/com/linkedin/coral/common/HiveTypeSystem.java`](../coral-common/src/main/java/com/linkedin/coral/common/HiveTypeSystem.java)
+- [`coral-common/src/main/java/com/linkedin/coral/common/CoralJavaTypeFactoryImpl.java`](../coral-common/src/main/java/com/linkedin/coral/common/CoralJavaTypeFactoryImpl.java)
+- [`coral-common/src/main/java/com/linkedin/coral/common/HiveMetastoreClient.java`](../coral-common/src/main/java/com/linkedin/coral/common/HiveMetastoreClient.java)
+- [`coral-common/src/main/java/com/linkedin/coral/common/HiveMscAdapter.java`](../coral-common/src/main/java/com/linkedin/coral/common/HiveMscAdapter.java)
+- [`coral-common/src/main/java/com/linkedin/coral/common/FuzzyUnionSqlRewriter.java`](../coral-common/src/main/java/com/linkedin/coral/common/FuzzyUnionSqlRewriter.java)
+- [`coral-common/src/main/java/com/linkedin/coral/common/TypeConverter.java`](../coral-common/src/main/java/com/linkedin/coral/common/TypeConverter.java)
+- [`coral-common/src/main/java/com/linkedin/coral/common/functions/Function.java`](../coral-common/src/main/java/com/linkedin/coral/common/functions/Function.java)
+- [`coral-common/src/main/java/com/linkedin/coral/common/functions/CoralSqlUnnestOperator.java`](../coral-common/src/main/java/com/linkedin/coral/common/functions/CoralSqlUnnestOperator.java)
+- [`coral-common/src/main/java/com/linkedin/coral/common/functions/FunctionFieldReferenceOperator.java`](../coral-common/src/main/java/com/linkedin/coral/common/functions/FunctionFieldReferenceOperator.java)
+- [`coral-common/src/main/java/com/linkedin/coral/common/functions/GenericProjectFunction.java`](../coral-common/src/main/java/com/linkedin/coral/common/functions/GenericProjectFunction.java)
+- [`coral-common/src/main/java/com/linkedin/coral/common/transformers/SqlCallTransformer.java`](../coral-common/src/main/java/com/linkedin/coral/common/transformers/SqlCallTransformer.java)
+- [`coral-common/src/main/java/com/linkedin/coral/common/transformers/SqlCallTransformers.java`](../coral-common/src/main/java/com/linkedin/coral/common/transformers/SqlCallTransformers.java)
+- [`coral-common/src/main/java/com/linkedin/coral/common/calcite/CalciteUtil.java`](../coral-common/src/main/java/com/linkedin/coral/common/calcite/CalciteUtil.java)
+- [`coral-common/src/main/java/com/linkedin/coral/common/utils/TypeDerivationUtil.java`](../coral-common/src/main/java/com/linkedin/coral/common/utils/TypeDerivationUtil.java)
+- [`coral-common/src/main/java/com/linkedin/coral/common/utils/RelDataTypeToHiveTypeStringConverter.java`](../coral-common/src/main/java/com/linkedin/coral/common/utils/RelDataTypeToHiveTypeStringConverter.java)
+- [`coral-hive/src/main/java/com/linkedin/coral/hive/hive2rel/HiveToRelConverter.java`](../coral-hive/src/main/java/com/linkedin/coral/hive/hive2rel/HiveToRelConverter.java)
+- [`coral-trino/src/main/java/com/linkedin/coral/trino/trino2rel/TrinoToRelConverter.java`](../coral-trino/src/main/java/com/linkedin/coral/trino/trino2rel/TrinoToRelConverter.java)
 
 ## Read next
 
-- Chapter 05 — the `CoralCatalog` and `CoralDataType` hierarchies you saw referenced throughout this chapter.
-- Chapter 07 — the `SqlCallTransformer` framework that lives in `transformers/`.
-- Chapter 15 — `FuzzyUnionSqlRewriter` and the rest of the LinkedIn-specific machinery.
+- [Chapter 05](05-type-system-and-catalog.md) — the `CoralCatalog` and `CoralDataType` hierarchies you saw referenced throughout this chapter.
+- [Chapter 07](07-transformers-pattern.md) — the `SqlCallTransformer` framework that lives in `transformers/`.
+- [Chapter 15](15-linkedin-specifics.md) — `FuzzyUnionSqlRewriter` and the rest of the LinkedIn-specific machinery.

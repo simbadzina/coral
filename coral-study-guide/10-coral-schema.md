@@ -20,7 +20,7 @@ graph LR
 
 ## Entry point: `ViewToAvroSchemaConverter`
 
-`coral-schema/src/main/java/com/linkedin/coral/schema/avro/ViewToAvroSchemaConverter.java` is the public face of the module. It exposes two factories — `create(HiveMetastoreClient)` (deprecated) and `create(CoralCatalog)` — and three flavors of `toAvroSchema(...)`:
+[`coral-schema/src/main/java/com/linkedin/coral/schema/avro/ViewToAvroSchemaConverter.java`](../coral-schema/src/main/java/com/linkedin/coral/schema/avro/ViewToAvroSchemaConverter.java) is the public face of the module. It exposes two factories — `create(HiveMetastoreClient)` (deprecated) and `create(CoralCatalog)` — and three flavors of `toAvroSchema(...)`:
 
 - `toAvroSchema(String dbName, String tableOrViewName)` — the common case. Resolves the table or view, returns its Avro schema.
 - `toAvroSchema(dbName, tableOrViewName, boolean strictMode)` — adds the strict-mode toggle described below.
@@ -60,7 +60,7 @@ The shuttle maintains a `Map<RelNode, Schema>` keyed by `RelNode` identity. Afte
 
 - **`LogicalJoin`** — concatenates the left and right input schemas onto a single record assembler. The TODO in the source warns that Avro's "no two sibling fields with the same name" rule is not yet enforced for joins.
 
-- **`LogicalUnion`** — delegates to `SchemaUtilities.mergeUnionRecordSchema(...)`. Heterogeneous union branches were the original motivation for `FuzzyUnionSqlRewriter` (chapter 15); the schema merge here mirrors that logic.
+- **`LogicalUnion`** — delegates to `SchemaUtilities.mergeUnionRecordSchema(...)`. Heterogeneous union branches were the original motivation for `FuzzyUnionSqlRewriter` ([chapter 15](15-linkedin-specifics.md)); the schema merge here mirrors that logic.
 
 - **`LogicalCorrelate`** — joins the left and right input schemas via `SchemaUtilities.joinSchemas(...)`, used for lateral views.
 
@@ -109,7 +109,7 @@ A merge engine combines a Coral-derived schema (from Hive columns or `CoralDataT
 3. Field types come from the **Hive** side.
 4. Fields only in Hive are retained as optional, with sanitized Avro-compatible names; fields only in Avro are dropped.
 
-The fields-from-partner rule is the legacy quirk: in Hive land the partner Avro is treated as authoritative for naming because Hive's column case is unreliable. `checkCompatibilityAndPromote(...)` is the one place Avro can override Hive's type: if Hive says `BYTES` and the partner says `FIXED`, the partner wins; same for `STRING → ENUM`. The path is used whenever the table is Hive-backed, including the `IcebergHiveTableConverter` bridge path that synthesizes a Hive table from an Iceberg one (chapter 05 discusses issue #575).
+The fields-from-partner rule is the legacy quirk: in Hive land the partner Avro is treated as authoritative for naming because Hive's column case is unreliable. `checkCompatibilityAndPromote(...)` is the one place Avro can override Hive's type: if Hive says `BYTES` and the partner says `FIXED`, the partner wins; same for `STRING → ENUM`. The path is used whenever the table is Hive-backed, including the `IcebergHiveTableConverter` bridge path that synthesizes a Hive table from an Iceberg one ([chapter 05](05-type-system-and-catalog.md) discusses issue #575).
 
 ### `MergeCoralSchemaWithAvro` (new, 2024)
 
@@ -119,13 +119,13 @@ The fields-from-partner rule is the legacy quirk: in Hive land the partner Avro 
 2. **Output uses the Coral casing.** Where `MergeHiveSchemaWithAvro` would pull `fa` from the partner because partner names win, `MergeCoralSchemaWithAvro` emits `fA` because the `StructType` said `fA`. Case-insensitive resolution is the consumer's responsibility — Iceberg's schema spec disallows sibling fields that differ only in case, so the match is unambiguous.
 3. **Nullability comes from `CoralDataType.isNullable()`.** `applyCoralNullability(...)` wraps the result in `[null, T]` (respecting the partner's null placement order via `isNullSecond(partner)` when possible) if Coral says nullable, and unwraps if Coral says non-nullable.
 
-The matching test suite at `coral-schema/src/test/java/com/linkedin/coral/schema/avro/MergeCoralSchemaWithAvroTests.java` reads like a spec sheet: `shouldUseFieldNamesFromCoral`, `shouldUseNullabilityFromCoral`, `shouldUseTypesFromCoral`, `shouldIgnoreExtraFieldsFromAvro`, `shouldRetainExtraFieldsFromCoral`, `shouldRetainDocStringsFromAvro`, `shouldRetainDefaultValuesFromAvro`, `shouldRetainFieldPropsFromAvro`, `shouldHandleArrays`, `shouldHandleMaps`, plus precision-specific tests for timestamps and decimals. Use this file as the contract when changing merge behavior.
+The matching test suite at [`coral-schema/src/test/java/com/linkedin/coral/schema/avro/MergeCoralSchemaWithAvroTests.java`](../coral-schema/src/test/java/com/linkedin/coral/schema/avro/MergeCoralSchemaWithAvroTests.java) reads like a spec sheet: `shouldUseFieldNamesFromCoral`, `shouldUseNullabilityFromCoral`, `shouldUseTypesFromCoral`, `shouldIgnoreExtraFieldsFromAvro`, `shouldRetainExtraFieldsFromCoral`, `shouldRetainDocStringsFromAvro`, `shouldRetainDefaultValuesFromAvro`, `shouldRetainFieldPropsFromAvro`, `shouldHandleArrays`, `shouldHandleMaps`, plus precision-specific tests for timestamps and decimals. Use this file as the contract when changing merge behavior.
 
 The new engine maps Coral primitives in `coralPrimitiveToAvro(...)`. The most interesting cases are timestamps and binary: `TimestampType` with precision ≤3 maps to `timestamp-millis`, otherwise to `timestamp-micros` (Iceberg's microsecond default lands here), with unspecified precision defaulting to micros; `BinaryType.isFixedLength()` produces an Avro `FIXED` of length `n`, otherwise plain `BYTES`. `checkCompatibilityAndPromote(...)` carries the same `BYTES → FIXED` and `STRING → ENUM` promotions as the Hive engine and adds preservation of partner UUID logical type.
 
 ### When each is used
 
-The fork point is in `SchemaUtilities.getAvroSchemaForTable(CoralTable, strictMode)`. If the `CoralTable` is a `HiveTable`, the method unwraps it and calls the Hive overload, which uses `MergeHiveSchemaWithAvro`. If it is any other `CoralTable` subclass (currently `IcebergTable`), the method reads partner Avro from `CoralTable.properties()` and calls `MergeCoralSchemaWithAvro.merge(...)`. The `MergeCoralSchemaWithAvro` path will replace `MergeHiveSchemaWithAvro` as the `CoralCatalog` migration completes and the `IcebergHiveTableConverter` bridge is removed (chapter 05).
+The fork point is in `SchemaUtilities.getAvroSchemaForTable(CoralTable, strictMode)`. If the `CoralTable` is a `HiveTable`, the method unwraps it and calls the Hive overload, which uses `MergeHiveSchemaWithAvro`. If it is any other `CoralTable` subclass (currently `IcebergTable`), the method reads partner Avro from `CoralTable.properties()` and calls `MergeCoralSchemaWithAvro.merge(...)`. The `MergeCoralSchemaWithAvro` path will replace `MergeHiveSchemaWithAvro` as the `CoralCatalog` migration completes and the `IcebergHiveTableConverter` bridge is removed ([chapter 05](05-type-system-and-catalog.md)).
 
 ## Reviewer note
 
@@ -133,20 +133,20 @@ A PR that touches nullability semantics, field matching, or any aspect of the me
 
 ## Files this chapter discusses
 
-- `coral-schema/src/main/java/com/linkedin/coral/schema/avro/ViewToAvroSchemaConverter.java`
-- `coral-schema/src/main/java/com/linkedin/coral/schema/avro/RelToAvroSchemaConverter.java`
-- `coral-schema/src/main/java/com/linkedin/coral/schema/avro/RelDataTypeToAvroType.java`
-- `coral-schema/src/main/java/com/linkedin/coral/schema/avro/TypeInfoToAvroSchemaConverter.java`
-- `coral-schema/src/main/java/com/linkedin/coral/schema/avro/SchemaUtilities.java`
-- `coral-schema/src/main/java/com/linkedin/coral/schema/avro/MergeHiveSchemaWithAvro.java`
-- `coral-schema/src/main/java/com/linkedin/coral/schema/avro/MergeCoralSchemaWithAvro.java`
-- `coral-schema/src/main/java/com/linkedin/coral/schema/avro/HiveSchemaWithPartnerVisitor.java`
-- `coral-schema/src/main/java/com/linkedin/coral/schema/avro/ToLowercaseSchemaVisitor.java`
-- `coral-schema/src/main/java/com/linkedin/coral/schema/avro/AvroSerdeUtils.java`
-- `coral-schema/src/test/java/com/linkedin/coral/schema/avro/MergeCoralSchemaWithAvroTests.java`
+- [`coral-schema/src/main/java/com/linkedin/coral/schema/avro/ViewToAvroSchemaConverter.java`](../coral-schema/src/main/java/com/linkedin/coral/schema/avro/ViewToAvroSchemaConverter.java)
+- [`coral-schema/src/main/java/com/linkedin/coral/schema/avro/RelToAvroSchemaConverter.java`](../coral-schema/src/main/java/com/linkedin/coral/schema/avro/RelToAvroSchemaConverter.java)
+- [`coral-schema/src/main/java/com/linkedin/coral/schema/avro/RelDataTypeToAvroType.java`](../coral-schema/src/main/java/com/linkedin/coral/schema/avro/RelDataTypeToAvroType.java)
+- [`coral-schema/src/main/java/com/linkedin/coral/schema/avro/TypeInfoToAvroSchemaConverter.java`](../coral-schema/src/main/java/com/linkedin/coral/schema/avro/TypeInfoToAvroSchemaConverter.java)
+- [`coral-schema/src/main/java/com/linkedin/coral/schema/avro/SchemaUtilities.java`](../coral-schema/src/main/java/com/linkedin/coral/schema/avro/SchemaUtilities.java)
+- [`coral-schema/src/main/java/com/linkedin/coral/schema/avro/MergeHiveSchemaWithAvro.java`](../coral-schema/src/main/java/com/linkedin/coral/schema/avro/MergeHiveSchemaWithAvro.java)
+- [`coral-schema/src/main/java/com/linkedin/coral/schema/avro/MergeCoralSchemaWithAvro.java`](../coral-schema/src/main/java/com/linkedin/coral/schema/avro/MergeCoralSchemaWithAvro.java)
+- [`coral-schema/src/main/java/com/linkedin/coral/schema/avro/HiveSchemaWithPartnerVisitor.java`](../coral-schema/src/main/java/com/linkedin/coral/schema/avro/HiveSchemaWithPartnerVisitor.java)
+- [`coral-schema/src/main/java/com/linkedin/coral/schema/avro/ToLowercaseSchemaVisitor.java`](../coral-schema/src/main/java/com/linkedin/coral/schema/avro/ToLowercaseSchemaVisitor.java)
+- [`coral-schema/src/main/java/com/linkedin/coral/schema/avro/AvroSerdeUtils.java`](../coral-schema/src/main/java/com/linkedin/coral/schema/avro/AvroSerdeUtils.java)
+- [`coral-schema/src/test/java/com/linkedin/coral/schema/avro/MergeCoralSchemaWithAvroTests.java`](../coral-schema/src/test/java/com/linkedin/coral/schema/avro/MergeCoralSchemaWithAvroTests.java)
 
 ## Read next
 
-- Chapter 05 — type system and `CoralCatalog`. `CoralDataType` is what `MergeCoralSchemaWithAvro` consumes; the catalog migration is the lever that retires `MergeHiveSchemaWithAvro`.
-- Chapter 15 — LinkedIn specifics, including why Avro is everywhere and where `FuzzyUnionSqlRewriter` interacts with `LogicalUnion` schema merging.
-- Chapter 16 — reviewer's checklist, with module-level rules for `coral-schema` PRs.
+- [Chapter 05](05-type-system-and-catalog.md) — type system and `CoralCatalog`. `CoralDataType` is what `MergeCoralSchemaWithAvro` consumes; the catalog migration is the lever that retires `MergeHiveSchemaWithAvro`.
+- [Chapter 15](15-linkedin-specifics.md) — LinkedIn specifics, including why Avro is everywhere and where `FuzzyUnionSqlRewriter` interacts with `LogicalUnion` schema merging.
+- [Chapter 16](16-pr-review-companion.md) — reviewer's checklist, with module-level rules for `coral-schema` PRs.

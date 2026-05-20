@@ -9,7 +9,7 @@ This guide is **not canonical Coral documentation**. It lives on a personal fork
 There are three reading modes:
 
 1. **Sequential learner**: read in order 00 → 19. Roughly 8-12 hours plus exercises. Builds the full mental model.
-2. **Reviewer**: a PR lands in module *X*. Jump to the matching chapter (06 for coral-hive, 09 for coral-trino, ...) plus chapter 16 for the per-module review checklist.
+2. **Reviewer**: a PR lands in module *X*. Jump to the matching chapter (06 for coral-hive, 09 for coral-trino, ...) plus [chapter 16](16-pr-review-companion.md) for the per-module review checklist.
 3. **Speed-run (2 hours)**: read `01-the-big-picture.md`, `03-pipeline-deep-dive.md`, and `16-pr-review-companion.md`. Enough to follow a code review conversation and not be lost.
 
 ## Prerequisites
@@ -78,7 +78,7 @@ graph LR
     RelNode --> Avro
 ```
 
-Frontends parse a dialect into Coral IR. Backends generate code from Coral IR. The two-layer IR (AST + logical plan) is what makes the N×N → 2N reduction possible. Chapter 01 unpacks this; chapter 03 traces an actual query through it.
+Frontends parse a dialect into Coral IR. Backends generate code from Coral IR. The two-layer IR (AST + logical plan) is what makes the N×N → 2N reduction possible. [Chapter 01](01-the-big-picture.md) unpacks this; [chapter 03](03-pipeline-deep-dive.md) traces an actual query through it.
 
 ## Working with this guide
 

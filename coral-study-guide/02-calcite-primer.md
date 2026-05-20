@@ -72,7 +72,7 @@ classDiagram
 - **`SqlSelect`** — the body of a single `SELECT`. Holds keyword list, select list, from clause, where clause, group/having/window, order/offset/fetch.
 - **`SqlJoin`** — a join expression in the `FROM` clause. Carries left, right, join type (`SqlJoinType`), condition type (ON, USING, NONE), condition.
 
-The standard interaction pattern: cast to `SqlCall`, walk `getOperandList()`, recurse. The polymorphic dispatch lives on `SqlVisitor` and on `SqlShuttle` (a visitor that rewrites in place). Coral uses `SqlShuttle` constantly — see chapter 07.
+The standard interaction pattern: cast to `SqlCall`, walk `getOperandList()`, recurse. The polymorphic dispatch lives on `SqlVisitor` and on `SqlShuttle` (a visitor that rewrites in place). Coral uses `SqlShuttle` constantly — see [chapter 07](07-transformers-pattern.md).
 
 ### RelNode operators worth recognizing
 
@@ -103,7 +103,7 @@ return ChainedSqlOperatorTable.of(
     new DaliOperatorTable(functionResolver));
 ```
 
-`DaliOperatorTable` (in `coral-hive`) delegates to `HiveFunctionResolver`, which in turn consults `StaticHiveFunctionRegistry` (Hive's built-in catalog) and the Dali function metadata that lives in Hive table parameters. The Calcite contract — `SqlOperatorTable` — does not change; Coral plugs in its own implementation. Chapter 06 dissects the function resolver in detail.
+`DaliOperatorTable` (in `coral-hive`) delegates to `HiveFunctionResolver`, which in turn consults `StaticHiveFunctionRegistry` (Hive's built-in catalog) and the Dali function metadata that lives in Hive table parameters. The Calcite contract — `SqlOperatorTable` — does not change; Coral plugs in its own implementation. [Chapter 06](06-coral-hive.md) dissects the function resolver in detail.
 
 ## SqlValidator — what validation does
 
@@ -216,33 +216,33 @@ Every Coral converter assembles its `FrameworkConfig` once at construction. `Hiv
 
 | Calcite concept | Coral extension | File |
 |---|---|---|
-| `SqlValidator` | `HiveSqlValidator` | `coral-hive/src/main/java/com/linkedin/coral/hive/hive2rel/HiveSqlValidator.java` |
-| `SqlToRelConverter` | `HiveSqlToRelConverter` | `coral-hive/src/main/java/com/linkedin/coral/hive/hive2rel/HiveSqlToRelConverter.java` |
-| `SqlRexConvertletTable` | `CoralConvertletTable` | `coral-hive/src/main/java/com/linkedin/coral/hive/hive2rel/CoralConvertletTable.java` |
-| `SqlOperatorTable` | `DaliOperatorTable` (chained with `SqlStdOperatorTable`) | `coral-hive/src/main/java/com/linkedin/coral/hive/hive2rel/DaliOperatorTable.java` |
-| `RelBuilder` | `HiveRelBuilder` | `coral-common/src/main/java/com/linkedin/coral/common/HiveRelBuilder.java` |
-| `RexBuilder` | `HiveRexBuilder` | `coral-hive/src/main/java/com/linkedin/coral/hive/hive2rel/HiveRexBuilder.java` |
-| `RelDataTypeSystem` | `HiveTypeSystem` | `coral-common/src/main/java/com/linkedin/coral/common/HiveTypeSystem.java` |
-| `Uncollect` `RelNode` | `HiveUncollect` | `coral-common/src/main/java/com/linkedin/coral/common/HiveUncollect.java` |
-| `FrameworkConfig` assembly | `ToRelConverter` constructors | `coral-common/src/main/java/com/linkedin/coral/common/ToRelConverter.java` |
+| `SqlValidator` | `HiveSqlValidator` | [`coral-hive/src/main/java/com/linkedin/coral/hive/hive2rel/HiveSqlValidator.java`](../coral-hive/src/main/java/com/linkedin/coral/hive/hive2rel/HiveSqlValidator.java) |
+| `SqlToRelConverter` | `HiveSqlToRelConverter` | [`coral-hive/src/main/java/com/linkedin/coral/hive/hive2rel/HiveSqlToRelConverter.java`](../coral-hive/src/main/java/com/linkedin/coral/hive/hive2rel/HiveSqlToRelConverter.java) |
+| `SqlRexConvertletTable` | `CoralConvertletTable` | [`coral-hive/src/main/java/com/linkedin/coral/hive/hive2rel/CoralConvertletTable.java`](../coral-hive/src/main/java/com/linkedin/coral/hive/hive2rel/CoralConvertletTable.java) |
+| `SqlOperatorTable` | `DaliOperatorTable` (chained with `SqlStdOperatorTable`) | [`coral-hive/src/main/java/com/linkedin/coral/hive/hive2rel/DaliOperatorTable.java`](../coral-hive/src/main/java/com/linkedin/coral/hive/hive2rel/DaliOperatorTable.java) |
+| `RelBuilder` | `HiveRelBuilder` | [`coral-common/src/main/java/com/linkedin/coral/common/HiveRelBuilder.java`](../coral-common/src/main/java/com/linkedin/coral/common/HiveRelBuilder.java) |
+| `RexBuilder` | `HiveRexBuilder` | [`coral-hive/src/main/java/com/linkedin/coral/hive/hive2rel/HiveRexBuilder.java`](../coral-hive/src/main/java/com/linkedin/coral/hive/hive2rel/HiveRexBuilder.java) |
+| `RelDataTypeSystem` | `HiveTypeSystem` | [`coral-common/src/main/java/com/linkedin/coral/common/HiveTypeSystem.java`](../coral-common/src/main/java/com/linkedin/coral/common/HiveTypeSystem.java) |
+| `Uncollect` `RelNode` | `HiveUncollect` | [`coral-common/src/main/java/com/linkedin/coral/common/HiveUncollect.java`](../coral-common/src/main/java/com/linkedin/coral/common/HiveUncollect.java) |
+| `FrameworkConfig` assembly | `ToRelConverter` constructors | [`coral-common/src/main/java/com/linkedin/coral/common/ToRelConverter.java`](../coral-common/src/main/java/com/linkedin/coral/common/ToRelConverter.java) |
 
 The pattern is uniform: Coral subclasses a Calcite extension point, overrides a small surface, and threads the override through `FrameworkConfig` and the `ToRelConverter` constructor. If you remember the Calcite interface, you can predict where Coral plugs in.
 
 ## Files this chapter discusses
 
-- `coral-common/src/main/java/com/linkedin/coral/common/ToRelConverter.java`
-- `coral-common/src/main/java/com/linkedin/coral/common/HiveTypeSystem.java`
-- `coral-common/src/main/java/com/linkedin/coral/common/HiveRelBuilder.java`
-- `coral-common/src/main/java/com/linkedin/coral/common/HiveUncollect.java`
-- `coral-hive/src/main/java/com/linkedin/coral/hive/hive2rel/HiveToRelConverter.java`
-- `coral-hive/src/main/java/com/linkedin/coral/hive/hive2rel/HiveSqlValidator.java`
-- `coral-hive/src/main/java/com/linkedin/coral/hive/hive2rel/HiveSqlToRelConverter.java`
-- `coral-hive/src/main/java/com/linkedin/coral/hive/hive2rel/CoralConvertletTable.java`
-- `coral-hive/src/main/java/com/linkedin/coral/hive/hive2rel/DaliOperatorTable.java`
-- `coral-hive/src/main/java/com/linkedin/coral/hive/hive2rel/HiveRexBuilder.java`
+- [`coral-common/src/main/java/com/linkedin/coral/common/ToRelConverter.java`](../coral-common/src/main/java/com/linkedin/coral/common/ToRelConverter.java)
+- [`coral-common/src/main/java/com/linkedin/coral/common/HiveTypeSystem.java`](../coral-common/src/main/java/com/linkedin/coral/common/HiveTypeSystem.java)
+- [`coral-common/src/main/java/com/linkedin/coral/common/HiveRelBuilder.java`](../coral-common/src/main/java/com/linkedin/coral/common/HiveRelBuilder.java)
+- [`coral-common/src/main/java/com/linkedin/coral/common/HiveUncollect.java`](../coral-common/src/main/java/com/linkedin/coral/common/HiveUncollect.java)
+- [`coral-hive/src/main/java/com/linkedin/coral/hive/hive2rel/HiveToRelConverter.java`](../coral-hive/src/main/java/com/linkedin/coral/hive/hive2rel/HiveToRelConverter.java)
+- [`coral-hive/src/main/java/com/linkedin/coral/hive/hive2rel/HiveSqlValidator.java`](../coral-hive/src/main/java/com/linkedin/coral/hive/hive2rel/HiveSqlValidator.java)
+- [`coral-hive/src/main/java/com/linkedin/coral/hive/hive2rel/HiveSqlToRelConverter.java`](../coral-hive/src/main/java/com/linkedin/coral/hive/hive2rel/HiveSqlToRelConverter.java)
+- [`coral-hive/src/main/java/com/linkedin/coral/hive/hive2rel/CoralConvertletTable.java`](../coral-hive/src/main/java/com/linkedin/coral/hive/hive2rel/CoralConvertletTable.java)
+- [`coral-hive/src/main/java/com/linkedin/coral/hive/hive2rel/DaliOperatorTable.java`](../coral-hive/src/main/java/com/linkedin/coral/hive/hive2rel/DaliOperatorTable.java)
+- [`coral-hive/src/main/java/com/linkedin/coral/hive/hive2rel/HiveRexBuilder.java`](../coral-hive/src/main/java/com/linkedin/coral/hive/hive2rel/HiveRexBuilder.java)
 
 ## Read next
 
-- **Chapter 03** — pipeline deep dive. Watches one query traverse every class above.
-- **Chapter 04** — coral-common, where `ToRelConverter` and the shared Calcite overrides live.
-- **Chapter 05** — type system and CoralCatalog. Goes deeper on `HiveTypeSystem`, `CoralDataType`, and the schema layer that feeds the validator.
+- **[Chapter 03](03-pipeline-deep-dive.md)** — pipeline deep dive. Watches one query traverse every class above.
+- **[Chapter 04](04-coral-common.md)** — coral-common, where `ToRelConverter` and the shared Calcite overrides live.
+- **[Chapter 05](05-type-system-and-catalog.md)** — type system and CoralCatalog. Goes deeper on `HiveTypeSystem`, `CoralDataType`, and the schema layer that feeds the validator.

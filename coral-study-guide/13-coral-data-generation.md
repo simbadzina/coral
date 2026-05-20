@@ -8,7 +8,7 @@ A SQL test corpus needs rows that exercise specific predicates: `WHERE LOWER(SUB
 
 Symbolic inversion sidesteps this. Instead of guess-and-check, the module starts from the predicate's required output (`true`, equivalently `LHS = 'abc'`) and walks the expression tree backward, asking each operator: "given that you must produce this output domain, what input domain must your variable operand belong to?" Every sampled row is valid by construction. The same machinery, as a side effect, detects contradictory predicates — when the intersection of two derived domains is empty, the query has no valid input and no test data is generated.
 
-Chapter 12's `coral-benchmark` is the natural consumer: its `RowSet` generation step can take a SQL file, run it through this module, and emit fixtures sized to the actual predicate's solution space.
+[Chapter 12](12-coral-benchmark.md)'s `coral-benchmark` is the natural consumer: its `RowSet` generation step can take a SQL file, run it through this module, and emit fixtures sized to the actual predicate's solution space.
 
 ## The shift in perspective
 
@@ -20,11 +20,11 @@ This is constraint solving, not data generation. The data generation is a thin s
 
 ## Domain types
 
-A `Domain<T, D>` is the algebraic substrate. `coral-data-generation/src/main/java/com/linkedin/coral/datagen/domain/Domain.java` declares five abstract operations: `isEmpty()`, `intersect(D)`, `union(D)`, `sample(int limit)`, `isSingleton()`. Domains form a lattice under intersection — every transformer's job is to compute the next refinement.
+A `Domain<T, D>` is the algebraic substrate. [`coral-data-generation/src/main/java/com/linkedin/coral/datagen/domain/Domain.java`](../coral-data-generation/src/main/java/com/linkedin/coral/datagen/domain/Domain.java) declares five abstract operations: `isEmpty()`, `intersect(D)`, `union(D)`, `sample(int limit)`, `isSingleton()`. Domains form a lattice under intersection — every transformer's job is to compute the next refinement.
 
 ### RegexDomain
 
-`coral-data-generation/src/main/java/com/linkedin/coral/datagen/domain/RegexDomain.java` represents a set of strings as a finite-state automaton from the `dk.brics.automaton` library. The library is not a regex matcher in the Java `Pattern` sense; it is a closed algebra over deterministic finite automata. Intersection is the product construction, union is the standard NFA union, emptiness is reachability of any accept state, and sampling is depth-first traversal collecting accepted prefixes.
+[`coral-data-generation/src/main/java/com/linkedin/coral/datagen/domain/RegexDomain.java`](../coral-data-generation/src/main/java/com/linkedin/coral/datagen/domain/RegexDomain.java) represents a set of strings as a finite-state automaton from the `dk.brics.automaton` library. The library is not a regex matcher in the Java `Pattern` sense; it is a closed algebra over deterministic finite automata. Intersection is the product construction, union is the standard NFA union, emptiness is reachability of any accept state, and sampling is depth-first traversal collecting accepted prefixes.
 
 A few details to internalize from the source:
 
@@ -36,7 +36,7 @@ A few details to internalize from the source:
 
 ### IntegerDomain
 
-`coral-data-generation/src/main/java/com/linkedin/coral/datagen/domain/IntegerDomain.java` represents a set of longs as a normalized, sorted, disjoint list of closed `[min, max]` intervals. The class is closed not only under set operations but also under arithmetic — `add(long)` and `multiply(long)` are present and saturating at `Long.MIN_VALUE` / `Long.MAX_VALUE`. This is what makes inverting `x + 5` straightforward: the result of inversion is just `domain.add(-5)`.
+[`coral-data-generation/src/main/java/com/linkedin/coral/datagen/domain/IntegerDomain.java`](../coral-data-generation/src/main/java/com/linkedin/coral/datagen/domain/IntegerDomain.java) represents a set of longs as a normalized, sorted, disjoint list of closed `[min, max]` intervals. The class is closed not only under set operations but also under arithmetic — `add(long)` and `multiply(long)` are present and saturating at `Long.MIN_VALUE` / `Long.MAX_VALUE`. This is what makes inverting `x + 5` straightforward: the result of inversion is just `domain.add(-5)`.
 
 The internal `Interval` class handles overlap (`thisInterval.min <= other.max && other.min <= thisInterval.max`), adjacency (intervals that differ by 1 are mergeable), and merge by min/max bounds. `normalizeIntervals(...)` sorts by min and walks the list merging overlapping or adjacent intervals, producing the canonical form. Intersection iterates the cross product of intervals and emits new ones bounded by `max(min1, min2)` and `min(max1, max2)`. Union concatenates and re-normalizes. `isSingleton()` is true iff there is exactly one interval and its min equals its max.
 
@@ -47,13 +47,13 @@ The internal `Interval` class handles overlap (`thisInterval.min <= other.max &&
 CAST is the only operator that crosses domain types. The bridge is two pieces:
 
 - `IntegerRangeAutomaton.build(long lo, long hi)` produces a minimal automaton that accepts exactly the decimal-string representations of integers in `[lo, hi]`. It splits the range by digit count, then recursively constructs fixed-length sub-automata with a clever pair of `boundedBelow`/`boundedAbove` flags — at each digit position, the bottom edge (digit = lo's digit) keeps the lower bound active while freeing the upper, the top edge does the reverse, and the middle band (digits strictly between) is unconstrained. The result is the language of, e.g., "all four-digit strings between 1900 and 1999" without enumerating each value.
-- `RegexToIntegerDomainConverter` runs the reverse: given a `RegexDomain` whose automaton is finite and digit-only, it either enumerates all accepted strings (up to `MAX_ENUMERATION_SIZE = 5000`) and parses them to longs, or — when enumeration is too large — computes `min` and `max` via memoized DFS over the automaton and emits a single interval. If the automaton is non-finite or contains non-digit transitions, it throws `NonConvertibleDomainException` (`coral-data-generation/src/main/java/com/linkedin/coral/datagen/domain/NonConvertibleDomainException.java`). The exception is a signal to the cast transformer that the cross-domain hop isn't safe — `CastRegexTransformer` catches it and falls back to intersecting with a `^-?[0-9]+$` mask.
+- `RegexToIntegerDomainConverter` runs the reverse: given a `RegexDomain` whose automaton is finite and digit-only, it either enumerates all accepted strings (up to `MAX_ENUMERATION_SIZE = 5000`) and parses them to longs, or — when enumeration is too large — computes `min` and `max` via memoized DFS over the automaton and emits a single interval. If the automaton is non-finite or contains non-digit transitions, it throws `NonConvertibleDomainException` ([`coral-data-generation/src/main/java/com/linkedin/coral/datagen/domain/NonConvertibleDomainException.java`](../coral-data-generation/src/main/java/com/linkedin/coral/datagen/domain/NonConvertibleDomainException.java)). The exception is a signal to the cast transformer that the cross-domain hop isn't safe — `CastRegexTransformer` catches it and falls back to intersecting with a `^-?[0-9]+$` mask.
 
 These two utilities together mean a `WHERE CAST(age AS STRING) = '50'` predicate can flow: `RegexDomain("^50$")` → conversion check → `IntegerDomain([50])` → arithmetic inversion through any preceding `*`/`+` → final domain on `age`.
 
 ## Transformers: inverting one operator at a time
 
-The transformer is the only thing that knows how to invert a specific SQL operator. `DomainTransformer` (`coral-data-generation/src/main/java/com/linkedin/coral/datagen/domain/DomainTransformer.java`) is intentionally not generic in the domain type — a transformer like `CastRegexTransformer` may take a `RegexDomain` on output and produce an `IntegerDomain` on input. Every implementation answers four questions: do I match this `RexNode`? is the variable in a valid operand position? where is the child to recurse into? and what domain do I produce on that child?
+The transformer is the only thing that knows how to invert a specific SQL operator. `DomainTransformer` ([`coral-data-generation/src/main/java/com/linkedin/coral/datagen/domain/DomainTransformer.java`](../coral-data-generation/src/main/java/com/linkedin/coral/datagen/domain/DomainTransformer.java)) is intentionally not generic in the domain type — a transformer like `CastRegexTransformer` may take a `RegexDomain` on output and produce an `IntegerDomain` on input. Every implementation answers four questions: do I match this `RexNode`? is the variable in a valid operand position? where is the child to recurse into? and what domain do I produce on that child?
 
 Five transformers ship today. They live in `coral-data-generation/src/main/java/com/linkedin/coral/datagen/domain/transformer/`.
 
@@ -71,7 +71,7 @@ The transformer set is open. Adding `UPPER`, `CONCAT`, `MOD`, or a date transfor
 
 ## The solver
 
-`DomainInferenceProgram` (`coral-data-generation/src/main/java/com/linkedin/coral/datagen/domain/DomainInferenceProgram.java`) is the top-down recursive inverter. The algorithm is twelve lines of meaningful logic:
+`DomainInferenceProgram` ([`coral-data-generation/src/main/java/com/linkedin/coral/datagen/domain/DomainInferenceProgram.java`](../coral-data-generation/src/main/java/com/linkedin/coral/datagen/domain/DomainInferenceProgram.java)) is the top-down recursive inverter. The algorithm is twelve lines of meaningful logic:
 
 ```java
 public Domain<?, ?> deriveInputDomain(RexNode expr, Domain<?, ?> outputDomain) {
@@ -157,34 +157,34 @@ The architecture is open to closing each gap by adding transformers, adding the 
 
 ## Pairing with coral-benchmark
 
-Chapter 12 covers `coral-benchmark`'s three verification levels (TRANSLATION, EXPLAIN, RESULT_SET). The third level needs in-memory data for both source and target engines. Today the corpus uses static `RowSet` fixtures wired up per query; nothing prevents an integration where `coral-data-generation` ingests the same query, walks the pipeline, derives a `Domain` per column, and emits a `RowSet` sized to the predicate's solution space. That removes the per-query fixture burden and makes the test corpus generative.
+[Chapter 12](12-coral-benchmark.md) covers `coral-benchmark`'s three verification levels (TRANSLATION, EXPLAIN, RESULT_SET). The third level needs in-memory data for both source and target engines. Today the corpus uses static `RowSet` fixtures wired up per query; nothing prevents an integration where `coral-data-generation` ingests the same query, walks the pipeline, derives a `Domain` per column, and emits a `RowSet` sized to the predicate's solution space. That removes the per-query fixture burden and makes the test corpus generative.
 
 The shape of that integration is clean: `coral-benchmark` already depends on `coral-hive` for parsing, and `coral-data-generation` consumes a `RelNode` produced by the same parser. A small adapter — `Domain` → `RowSet` cell values, choosing one sample per row — is the bridge. When a query produces an empty domain for any column, the benchmark surfaces it as a contradiction rather than a translation failure, which is more useful diagnostic information.
 
 ## Files this chapter discusses
 
-- `coral-data-generation/README.md`
-- `coral-data-generation/build.gradle`
-- `coral-data-generation/src/main/java/com/linkedin/coral/datagen/domain/Domain.java`
-- `coral-data-generation/src/main/java/com/linkedin/coral/datagen/domain/RegexDomain.java`
-- `coral-data-generation/src/main/java/com/linkedin/coral/datagen/domain/IntegerDomain.java`
-- `coral-data-generation/src/main/java/com/linkedin/coral/datagen/domain/IntegerRangeAutomaton.java`
-- `coral-data-generation/src/main/java/com/linkedin/coral/datagen/domain/RegexToIntegerDomainConverter.java`
-- `coral-data-generation/src/main/java/com/linkedin/coral/datagen/domain/NonConvertibleDomainException.java`
-- `coral-data-generation/src/main/java/com/linkedin/coral/datagen/domain/DomainTransformer.java`
-- `coral-data-generation/src/main/java/com/linkedin/coral/datagen/domain/DomainInferenceProgram.java`
-- `coral-data-generation/src/main/java/com/linkedin/coral/datagen/domain/transformer/LowerRegexTransformer.java`
-- `coral-data-generation/src/main/java/com/linkedin/coral/datagen/domain/transformer/SubstringRegexTransformer.java`
-- `coral-data-generation/src/main/java/com/linkedin/coral/datagen/domain/transformer/CastRegexTransformer.java`
-- `coral-data-generation/src/main/java/com/linkedin/coral/datagen/domain/transformer/PlusIntegerTransformer.java`
-- `coral-data-generation/src/main/java/com/linkedin/coral/datagen/domain/transformer/TimesIntegerTransformer.java`
-- `coral-data-generation/src/main/java/com/linkedin/coral/datagen/rel/ProjectPullUpRewriter.java`
-- `coral-data-generation/src/main/java/com/linkedin/coral/datagen/rel/ProjectPullUpController.java`
-- `coral-data-generation/src/main/java/com/linkedin/coral/datagen/rel/CanonicalPredicateExtractor.java`
-- `coral-data-generation/src/main/java/com/linkedin/coral/datagen/rel/DnfRewriter.java`
+- [`coral-data-generation/README.md`](../coral-data-generation/README.md)
+- [`coral-data-generation/build.gradle`](../coral-data-generation/build.gradle)
+- [`coral-data-generation/src/main/java/com/linkedin/coral/datagen/domain/Domain.java`](../coral-data-generation/src/main/java/com/linkedin/coral/datagen/domain/Domain.java)
+- [`coral-data-generation/src/main/java/com/linkedin/coral/datagen/domain/RegexDomain.java`](../coral-data-generation/src/main/java/com/linkedin/coral/datagen/domain/RegexDomain.java)
+- [`coral-data-generation/src/main/java/com/linkedin/coral/datagen/domain/IntegerDomain.java`](../coral-data-generation/src/main/java/com/linkedin/coral/datagen/domain/IntegerDomain.java)
+- [`coral-data-generation/src/main/java/com/linkedin/coral/datagen/domain/IntegerRangeAutomaton.java`](../coral-data-generation/src/main/java/com/linkedin/coral/datagen/domain/IntegerRangeAutomaton.java)
+- [`coral-data-generation/src/main/java/com/linkedin/coral/datagen/domain/RegexToIntegerDomainConverter.java`](../coral-data-generation/src/main/java/com/linkedin/coral/datagen/domain/RegexToIntegerDomainConverter.java)
+- [`coral-data-generation/src/main/java/com/linkedin/coral/datagen/domain/NonConvertibleDomainException.java`](../coral-data-generation/src/main/java/com/linkedin/coral/datagen/domain/NonConvertibleDomainException.java)
+- [`coral-data-generation/src/main/java/com/linkedin/coral/datagen/domain/DomainTransformer.java`](../coral-data-generation/src/main/java/com/linkedin/coral/datagen/domain/DomainTransformer.java)
+- [`coral-data-generation/src/main/java/com/linkedin/coral/datagen/domain/DomainInferenceProgram.java`](../coral-data-generation/src/main/java/com/linkedin/coral/datagen/domain/DomainInferenceProgram.java)
+- [`coral-data-generation/src/main/java/com/linkedin/coral/datagen/domain/transformer/LowerRegexTransformer.java`](../coral-data-generation/src/main/java/com/linkedin/coral/datagen/domain/transformer/LowerRegexTransformer.java)
+- [`coral-data-generation/src/main/java/com/linkedin/coral/datagen/domain/transformer/SubstringRegexTransformer.java`](../coral-data-generation/src/main/java/com/linkedin/coral/datagen/domain/transformer/SubstringRegexTransformer.java)
+- [`coral-data-generation/src/main/java/com/linkedin/coral/datagen/domain/transformer/CastRegexTransformer.java`](../coral-data-generation/src/main/java/com/linkedin/coral/datagen/domain/transformer/CastRegexTransformer.java)
+- [`coral-data-generation/src/main/java/com/linkedin/coral/datagen/domain/transformer/PlusIntegerTransformer.java`](../coral-data-generation/src/main/java/com/linkedin/coral/datagen/domain/transformer/PlusIntegerTransformer.java)
+- [`coral-data-generation/src/main/java/com/linkedin/coral/datagen/domain/transformer/TimesIntegerTransformer.java`](../coral-data-generation/src/main/java/com/linkedin/coral/datagen/domain/transformer/TimesIntegerTransformer.java)
+- [`coral-data-generation/src/main/java/com/linkedin/coral/datagen/rel/ProjectPullUpRewriter.java`](../coral-data-generation/src/main/java/com/linkedin/coral/datagen/rel/ProjectPullUpRewriter.java)
+- [`coral-data-generation/src/main/java/com/linkedin/coral/datagen/rel/ProjectPullUpController.java`](../coral-data-generation/src/main/java/com/linkedin/coral/datagen/rel/ProjectPullUpController.java)
+- [`coral-data-generation/src/main/java/com/linkedin/coral/datagen/rel/CanonicalPredicateExtractor.java`](../coral-data-generation/src/main/java/com/linkedin/coral/datagen/rel/CanonicalPredicateExtractor.java)
+- [`coral-data-generation/src/main/java/com/linkedin/coral/datagen/rel/DnfRewriter.java`](../coral-data-generation/src/main/java/com/linkedin/coral/datagen/rel/DnfRewriter.java)
 
 ## Read next
 
-- Chapter 12 — `coral-benchmark`, the consumer of generated `RowSet`s.
-- Chapter 16 — PR review companion; the row "are new transformers sound (no false positives)?" is the load-bearing reviewer question for this module.
-- Chapter 07 — the transformer pattern in `coral-common`, for contrast: that one is a forward `RelNode → RelNode` rewriter, while these transformers are a backward `Domain → Domain` inverter. Same name, opposite direction.
+- [Chapter 12](12-coral-benchmark.md) — `coral-benchmark`, the consumer of generated `RowSet`s.
+- [Chapter 16](16-pr-review-companion.md) — PR review companion; the row "are new transformers sound (no false positives)?" is the load-bearing reviewer question for this module.
+- [Chapter 07](07-transformers-pattern.md) — the transformer pattern in `coral-common`, for contrast: that one is a forward `RelNode → RelNode` rewriter, while these transformers are a backward `Domain → Domain` inverter. Same name, opposite direction.

@@ -6,13 +6,13 @@ See how `coral-benchmark` runs a corpus of `.sql` queries through Coral's transl
 
 ## Prerequisites
 
-- Read chapter 12 (`coral-benchmark: cross-dialect correctness`).
-- Read `coral-benchmark/coral-benchmark-spec.md` start to finish — the spec is normative; the code is the spec's shadow until `run()` is implemented.
+- Read [chapter 12](../12-coral-benchmark.md) (`coral-benchmark: cross-dialect correctness`).
+- Read [`coral-benchmark/coral-benchmark-spec.md`](../../coral-benchmark/coral-benchmark-spec.md) start to finish — the spec is normative; the code is the spec's shadow until `run()` is implemented.
 - The coral repo on `master` at or after commit `8f285d24` (the PR #599 merge).
 
 ## Steps
 
-1. **Open the spec.** Read `coral-benchmark/coral-benchmark-spec.md`. Pay particular attention to the three verification levels and the SPI contract sections — those are the load-bearing pieces. The spec is more detailed than chapter 12 because the chapter assumes you have read it.
+1. **Open the spec.** Read [`coral-benchmark/coral-benchmark-spec.md`](../../coral-benchmark/coral-benchmark-spec.md). Pay particular attention to the three verification levels and the SPI contract sections — those are the load-bearing pieces. The spec is more detailed than [chapter 12](../12-coral-benchmark.md) because the chapter assumes you have read it.
 
 2. **Map the SPI to files.** Open each in `coral-benchmark/src/main/java/com/linkedin/coral/benchmark/`:
 
@@ -22,7 +22,7 @@ See how `coral-benchmark` runs a corpus of `.sql` queries through Coral's transl
    - `spi/DialectPluginProvider.java` — `dialect()` and `create(CoralCatalog)`. The factory the orchestrator finds via `ServiceLoader`.
    - `spi/EnginePlugin.java` — `start`, `createTable`, `loadData`, `explain`, `execute`, `stop`. Only required for EXPLAIN and RESULT_SET levels.
 
-   Notice that no concrete `DialectPlugin` implementation exists in the module. The spec lists them; the code does not ship them. This is intentional — chapter 12 explains why.
+   Notice that no concrete `DialectPlugin` implementation exists in the module. The spec lists them; the code does not ship them. This is intentional — [chapter 12](../12-coral-benchmark.md) explains why.
 
 3. **Look at where the test entry point will go.** Run:
 
@@ -38,7 +38,7 @@ See how `coral-benchmark` runs a corpus of `.sql` queries through Coral's transl
 
    The output reports `BUILD SUCCESSFUL` with no test classes discovered. This is correct behavior for the current state of the module — the framework is in place, the corpus and the engine plugins are the next contributions.
 
-4. **Read the orchestrator.** Open `coral-benchmark/src/main/java/com/linkedin/coral/benchmark/suite/TranslationTestSuite.java`. The constructor and `Builder` are complete; `build()` validates that the right fields are set for the requested level (the `verificationLevel.ordinal() >= VerificationLevel.EXPLAIN.ordinal()` checks). The `run()` method body currently throws:
+4. **Read the orchestrator.** Open [`coral-benchmark/src/main/java/com/linkedin/coral/benchmark/suite/TranslationTestSuite.java`](../../coral-benchmark/src/main/java/com/linkedin/coral/benchmark/suite/TranslationTestSuite.java). The constructor and `Builder` are complete; `build()` validates that the right fields are set for the requested level (the `verificationLevel.ordinal() >= VerificationLevel.EXPLAIN.ordinal()` checks). The `run()` method body currently throws:
 
    ```java
    throw new UnsupportedOperationException("Not yet implemented");
@@ -56,7 +56,7 @@ See how `coral-benchmark` runs a corpus of `.sql` queries through Coral's transl
    - If either throws, the per-query result is `FAIL` with `FailureCategory.TRANSLATION_ERROR`, capturing the exception.
    - All per-query `QueryTestResult`s accumulate into a `TestReport`.
 
-   The shape of the `TestReport` is visible right now in `coral-benchmark/src/main/java/com/linkedin/coral/benchmark/suite/TestReport.java` and `QueryTestResult.java`. `TestReport` exposes `passCount()`, `failCount()`, `passRate()`, `getFailures()`, and `failureCountsByCategory()`.
+   The shape of the `TestReport` is visible right now in [`coral-benchmark/src/main/java/com/linkedin/coral/benchmark/suite/TestReport.java`](../../coral-benchmark/src/main/java/com/linkedin/coral/benchmark/suite/TestReport.java) and `QueryTestResult.java`. `TestReport` exposes `passCount()`, `failCount()`, `passRate()`, `getFailures()`, and `failureCountsByCategory()`.
 
 6. **Read the catalog and data types.** Open `catalog/InMemoryCatalog.java` and `catalog/InMemoryTable.java`. The catalog uses the existing `CoralCatalog` interface from `coral-common`, populated through a builder that enforces namespace-then-table order. Schemas use `CoralDataType` and its subtypes (`StructType`, `PrimitiveType`, etc.) — no parallel type system. This matters because any future `DialectPlugin` must accept a `CoralCatalog`, and the in-memory implementation is the canonical reference for what the framework expects.
 
@@ -72,11 +72,11 @@ See how `coral-benchmark` runs a corpus of `.sql` queries through Coral's transl
 
 Three things, in order:
 
-1. **Where queries will live.** The spec's convention is `coral-benchmark/src/test/resources/queries/<source-dialect>/`. Once the test corpus exists, adding a regression test for a Hive→Trino translation gap is one new `.sql` file. No Java, no Gradle, no plugin glue — the framework's value is exactly this low-friction extension surface (chapter 17 lists "expand the benchmark corpus" as a canonical first PR for this reason).
+1. **Where queries will live.** The spec's convention is `coral-benchmark/src/test/resources/queries/<source-dialect>/`. Once the test corpus exists, adding a regression test for a Hive→Trino translation gap is one new `.sql` file. No Java, no Gradle, no plugin glue — the framework's value is exactly this low-friction extension surface ([chapter 17](../17-first-contributions.md) lists "expand the benchmark corpus" as a canonical first PR for this reason).
 2. **What a `TestReport` actually contains.** Per-query: source SQL, translated SQL, status, optional `ExplainResult`, optional `ComparisonResult`, `FailureCategory`, exception. Aggregate: pass/fail counts and category histograms. When reviewing a benchmark-related PR, you should expect to see assertions against these fields, not against engine-execution side effects.
-3. **What is missing.** `TranslationTestSuite.run()` and `ResultSetComparator.compare()` are not yet implemented. No concrete `DialectPlugin` ships. No `META-INF/services` registration. The framework is scaffolding waiting for content. Chapter 17 spells out which of those gaps make good first contributions.
+3. **What is missing.** `TranslationTestSuite.run()` and `ResultSetComparator.compare()` are not yet implemented. No concrete `DialectPlugin` ships. No `META-INF/services` registration. The framework is scaffolding waiting for content. [Chapter 17](../17-first-contributions.md) spells out which of those gaps make good first contributions.
 
 ## Optional extensions
 
-- **Mentally translate a translation failure.** Pick a Hive query you know `RelToTrinoConverter` mishandles — chapter 09 lists candidates; `regexp_extract` with a literal pattern is a common one. Walk it through the eventual flow: which level catches it (TRANSLATION? EXPLAIN? RESULT_SET?), which `FailureCategory` it lands under, what the `TestReport` entry would look like. The mental rehearsal makes the value of a corpus tangible.
+- **Mentally translate a translation failure.** Pick a Hive query you know `RelToTrinoConverter` mishandles — [chapter 09](../09-coral-trino.md) lists candidates; `regexp_extract` with a literal pattern is a common one. Walk it through the eventual flow: which level catches it (TRANSLATION? EXPLAIN? RESULT_SET?), which `FailureCategory` it lands under, what the `TestReport` entry would look like. The mental rehearsal makes the value of a corpus tangible.
 - **Sketch a `DialectPluginProvider` for Hive.** In a scratch file (do not commit), write what `HiveDialectPluginProvider implements DialectPluginProvider` would look like: `dialect()` returns `Dialect.HIVE`, `create(CoralCatalog)` returns a `HiveDialectPlugin` that wraps a `HiveToRelConverter`. This is one of the canonical first PRs against this module.

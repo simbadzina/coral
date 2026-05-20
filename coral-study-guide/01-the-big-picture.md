@@ -57,7 +57,7 @@ Why two layers and not one?
 - SqlNode preserves surface SQL structure — order of columns, aliases, hints. Good for dialect emission.
 - RelNode is the canonical semantic form — equivalent queries normalize to the same tree. Good for optimization, rewriting, and schema derivation.
 
-A backend that emits in a dialect needs the surface-level information SqlNode carries; an analyzer that infers an Avro schema or rewrites for incremental view maintenance wants the semantic form RelNode provides. So the IR is two-layered on purpose, and chapter 03 walks the transitions.
+A backend that emits in a dialect needs the surface-level information SqlNode carries; an analyzer that infers an Avro schema or rewrites for incremental view maintenance wants the semantic form RelNode provides. So the IR is two-layered on purpose, and [chapter 03](03-pipeline-deep-dive.md) walks the transitions.
 
 ## The Coral codebase, in one screen
 
@@ -138,7 +138,7 @@ Coral is open source but designed around LinkedIn's data platform:
 - **Avro everywhere** — Kafka, Espresso, event pipelines all consume Avro schemas. `coral-schema` produces them from view definitions.
 - **ViewShift** — dynamic policy enforcement layer that uses Coral IR rewriting to inject access control into views at translation time.
 
-You can use Coral without any of these; if you read code that mentions `DaliOperatorTable`, `TransportUDFTransformer`, or `FuzzyUnionSqlRewriter`, that's LinkedIn-specific context (chapter 15 covers the terms).
+You can use Coral without any of these; if you read code that mentions `DaliOperatorTable`, `TransportUDFTransformer`, or `FuzzyUnionSqlRewriter`, that's LinkedIn-specific context ([chapter 15](15-linkedin-specifics.md) covers the terms).
 
 ## Why the IR is faithful to Hive
 
@@ -146,6 +146,6 @@ Coral's type system, validator, and converter implementations all skew Hive-flav
 
 ## What to read next
 
-- If Calcite's `SqlNode` / `RelNode` / convertlet vocabulary is rusty: **chapter 02** — the primer.
-- If Calcite is fresh in your head: **chapter 03** — walks a real query end-to-end.
-- If you're about to review a PR right now: **chapter 16** — the reviewer's checklist.
+- If Calcite's `SqlNode` / `RelNode` / convertlet vocabulary is rusty: **[chapter 02](02-calcite-primer.md)** — the primer.
+- If Calcite is fresh in your head: **[chapter 03](03-pipeline-deep-dive.md)** — walks a real query end-to-end.
+- If you're about to review a PR right now: **[chapter 16](16-pr-review-companion.md)** — the reviewer's checklist.

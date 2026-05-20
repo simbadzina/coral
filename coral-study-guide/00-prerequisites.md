@@ -27,4 +27,4 @@ Everything you need on your machine to read and exercise this guide.
 
 ## Read next
 
-- Chapter 01 — the big picture.
+- [Chapter 01](01-the-big-picture.md) — the big picture.

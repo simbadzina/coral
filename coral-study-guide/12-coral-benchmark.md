@@ -4,9 +4,9 @@
 
 ## Why this module exists
 
-Coral's value proposition collapses N × N translators to 2 × N by introducing an IR — see chapter 01 for the framing. The cost of that abstraction is a coverage problem: any frontend or backend change can subtly break an unrelated dialect pair. Module-level unit tests in `coral-hive` and `coral-trino` catch obvious regressions, but they verify the converter in isolation. They do not check that a Hive query, after passing through `HiveToRelConverter` and `RelToTrinoConverter`, is also semantically equivalent on a live Trino engine.
+Coral's value proposition collapses N × N translators to 2 × N by introducing an IR — see [chapter 01](01-the-big-picture.md) for the framing. The cost of that abstraction is a coverage problem: any frontend or backend change can subtly break an unrelated dialect pair. Module-level unit tests in `coral-hive` and `coral-trino` catch obvious regressions, but they verify the converter in isolation. They do not check that a Hive query, after passing through `HiveToRelConverter` and `RelToTrinoConverter`, is also semantically equivalent on a live Trino engine.
 
-`coral-benchmark` fills that gap. It is a *framework*, not a test corpus: the module ships the orchestrator, the SPI, the comparison machinery, and an in-memory catalog. Concrete `DialectPlugin` and `EnginePlugin` implementations live elsewhere — the spec (`coral-benchmark/coral-benchmark-spec.md`) intentionally defers the hosting module for plugins until real implementations exist. The module was introduced by PR #599 and is built on top of `coral-common` only — no other module dependency.
+`coral-benchmark` fills that gap. It is a *framework*, not a test corpus: the module ships the orchestrator, the SPI, the comparison machinery, and an in-memory catalog. Concrete `DialectPlugin` and `EnginePlugin` implementations live elsewhere — the spec ([`coral-benchmark/coral-benchmark-spec.md`](../coral-benchmark/coral-benchmark-spec.md)) intentionally defers the hosting module for plugins until real implementations exist. The module was introduced by PR #599 and is built on top of `coral-common` only — no other module dependency.
 
 The design intent (from `coral-benchmark-spec.md`):
 
@@ -124,7 +124,7 @@ The wrap-existing-converters strategy is spelled out in the `DialectPlugin` java
 
 - Hive — `HiveToRelConverter` for `toRelNode`, `CoralRelToSqlNodeConverter` (Hive dialect) for `toDialectSql`.
 - Trino — `TrinoToRelConverter` for `toRelNode`, `RelToTrinoConverter` for `toDialectSql`.
-- Spark — `HiveToRelConverter` (Spark SQL parses as Hive in Coral; see chapter 04) for `toRelNode`, `CoralSpark` for `toDialectSql`.
+- Spark — `HiveToRelConverter` (Spark SQL parses as Hive in Coral; see [chapter 04](04-coral-common.md)) for `toRelNode`, `CoralSpark` for `toDialectSql`.
 
 Providers are picked up by `ServiceLoader` via `META-INF/services/com.linkedin.coral.benchmark.spi.DialectPluginProvider`, or supplied explicitly to the suite builder through `sourcePluginProvider()` / `targetPluginProvider()`. `TranslationTestSuite.Builder#resolveProvider` does the discovery walk and throws a descriptive `IllegalStateException` if no provider matches.
 
@@ -144,7 +144,7 @@ Three-value enum with declared ordinal ordering: `TRANSLATION < EXPLAIN < RESULT
 
 `InMemoryCatalog` implements `CoralCatalog` over a `Map<String, Map<String, CoralTable>>`. No metastore, no Hadoop config, deep-copy-immutable after `build()`. The builder enforces that a namespace exists before you add a table to it and rejects duplicate table names.
 
-The table implementation, `InMemoryTable`, always reports `TableType.TABLE` — views are out of scope. The chapter 04 view-expansion mechanism lives in `coral-common`, not here; benchmark queries reference base tables only.
+The table implementation, `InMemoryTable`, always reports `TableType.TABLE` — views are out of scope. The [chapter 04](04-coral-common.md) view-expansion mechanism lives in `coral-common`, not here; benchmark queries reference base tables only.
 
 Build pattern from the spec:
 
@@ -212,9 +212,9 @@ For Level 1 (TRANSLATION), the workflow is one new file:
 1. Drop a `.sql` file into `coral-benchmark/src/test/resources/queries/<source-dialect>/`. File name is descriptive: `group_by_count.sql`, `nested_struct_access.sql`, `union_all_distinct.sql`.
 2. Make sure any tables the query references are registered in the `InMemoryCatalog` that the test uses.
 
-That is the entire delta for a translation-only test. No new Java, no new dependencies, no new wiring. This is why chapter 17 lists "expand the benchmark query corpus" as a first PR — the blast radius is tiny and the regression value is real.
+That is the entire delta for a translation-only test. No new Java, no new dependencies, no new wiring. This is why [chapter 17](17-first-contributions.md) lists "expand the benchmark query corpus" as a first PR — the blast radius is tiny and the regression value is real.
 
-For Level 2 you additionally need a target `EnginePlugin` registered. For Level 3 you also need a source `EnginePlugin` and a `RowSet` for each table the query touches. The data is sometimes the larger problem; see chapter 13 for how `coral-data-generation` solves it symbolically — given a SQL predicate, it infers a domain per source field and produces rows that satisfy the predicate.
+For Level 2 you additionally need a target `EnginePlugin` registered. For Level 3 you also need a source `EnginePlugin` and a `RowSet` for each table the query touches. The data is sometimes the larger problem; see [chapter 13](13-coral-data-generation.md) for how `coral-data-generation` solves it symbolically — given a SQL predicate, it infers a domain per source field and produces rows that satisfy the predicate.
 
 ## Why this is a high-leverage place to contribute
 
@@ -224,31 +224,31 @@ Three reasons, in order of importance:
 2. **It catches regressions other tests miss.** The unit tests in `coral-trino` verify a converter against an expected SQL string. They do not check that Trino can actually plan that SQL. They certainly do not check that Trino produces the same result as Hive on the same data. Level 2 and Level 3 catch both.
 3. **The SPI is the extension point.** When a new dialect lands (say, Coral grows a Snowflake backend), the work to add benchmark coverage is exactly one `DialectPluginProvider` plus one `EnginePlugin`. The orchestrator and the comparator come along for free.
 
-The module is new and there is no test corpus committed yet — that is exactly the contribution chapter 17 points at. The framework is the scaffolding; the queries are the value.
+The module is new and there is no test corpus committed yet — that is exactly the contribution [chapter 17](17-first-contributions.md) points at. The framework is the scaffolding; the queries are the value.
 
 ## Files this chapter discusses
 
-- `coral-benchmark/coral-benchmark-spec.md`
-- `coral-benchmark/build.gradle`
-- `coral-benchmark/src/main/java/com/linkedin/coral/benchmark/spi/Dialect.java`
-- `coral-benchmark/src/main/java/com/linkedin/coral/benchmark/spi/DialectPlugin.java`
-- `coral-benchmark/src/main/java/com/linkedin/coral/benchmark/spi/DialectPluginProvider.java`
-- `coral-benchmark/src/main/java/com/linkedin/coral/benchmark/spi/EnginePlugin.java`
-- `coral-benchmark/src/main/java/com/linkedin/coral/benchmark/spi/VerificationLevel.java`
-- `coral-benchmark/src/main/java/com/linkedin/coral/benchmark/catalog/InMemoryCatalog.java`
-- `coral-benchmark/src/main/java/com/linkedin/coral/benchmark/catalog/InMemoryTable.java`
-- `coral-benchmark/src/main/java/com/linkedin/coral/benchmark/data/RowSet.java`
-- `coral-benchmark/src/main/java/com/linkedin/coral/benchmark/data/ResultSet.java`
-- `coral-benchmark/src/main/java/com/linkedin/coral/benchmark/data/ExplainResult.java`
-- `coral-benchmark/src/main/java/com/linkedin/coral/benchmark/comparison/ResultSetComparator.java`
-- `coral-benchmark/src/main/java/com/linkedin/coral/benchmark/comparison/ComparisonConfig.java`
-- `coral-benchmark/src/main/java/com/linkedin/coral/benchmark/comparison/ComparisonResult.java`
-- `coral-benchmark/src/main/java/com/linkedin/coral/benchmark/suite/TranslationTestSuite.java`
-- `coral-benchmark/src/main/java/com/linkedin/coral/benchmark/suite/QueryTestResult.java`
-- `coral-benchmark/src/main/java/com/linkedin/coral/benchmark/suite/TestReport.java`
+- [`coral-benchmark/coral-benchmark-spec.md`](../coral-benchmark/coral-benchmark-spec.md)
+- [`coral-benchmark/build.gradle`](../coral-benchmark/build.gradle)
+- [`coral-benchmark/src/main/java/com/linkedin/coral/benchmark/spi/Dialect.java`](../coral-benchmark/src/main/java/com/linkedin/coral/benchmark/spi/Dialect.java)
+- [`coral-benchmark/src/main/java/com/linkedin/coral/benchmark/spi/DialectPlugin.java`](../coral-benchmark/src/main/java/com/linkedin/coral/benchmark/spi/DialectPlugin.java)
+- [`coral-benchmark/src/main/java/com/linkedin/coral/benchmark/spi/DialectPluginProvider.java`](../coral-benchmark/src/main/java/com/linkedin/coral/benchmark/spi/DialectPluginProvider.java)
+- [`coral-benchmark/src/main/java/com/linkedin/coral/benchmark/spi/EnginePlugin.java`](../coral-benchmark/src/main/java/com/linkedin/coral/benchmark/spi/EnginePlugin.java)
+- [`coral-benchmark/src/main/java/com/linkedin/coral/benchmark/spi/VerificationLevel.java`](../coral-benchmark/src/main/java/com/linkedin/coral/benchmark/spi/VerificationLevel.java)
+- [`coral-benchmark/src/main/java/com/linkedin/coral/benchmark/catalog/InMemoryCatalog.java`](../coral-benchmark/src/main/java/com/linkedin/coral/benchmark/catalog/InMemoryCatalog.java)
+- [`coral-benchmark/src/main/java/com/linkedin/coral/benchmark/catalog/InMemoryTable.java`](../coral-benchmark/src/main/java/com/linkedin/coral/benchmark/catalog/InMemoryTable.java)
+- [`coral-benchmark/src/main/java/com/linkedin/coral/benchmark/data/RowSet.java`](../coral-benchmark/src/main/java/com/linkedin/coral/benchmark/data/RowSet.java)
+- [`coral-benchmark/src/main/java/com/linkedin/coral/benchmark/data/ResultSet.java`](../coral-benchmark/src/main/java/com/linkedin/coral/benchmark/data/ResultSet.java)
+- [`coral-benchmark/src/main/java/com/linkedin/coral/benchmark/data/ExplainResult.java`](../coral-benchmark/src/main/java/com/linkedin/coral/benchmark/data/ExplainResult.java)
+- [`coral-benchmark/src/main/java/com/linkedin/coral/benchmark/comparison/ResultSetComparator.java`](../coral-benchmark/src/main/java/com/linkedin/coral/benchmark/comparison/ResultSetComparator.java)
+- [`coral-benchmark/src/main/java/com/linkedin/coral/benchmark/comparison/ComparisonConfig.java`](../coral-benchmark/src/main/java/com/linkedin/coral/benchmark/comparison/ComparisonConfig.java)
+- [`coral-benchmark/src/main/java/com/linkedin/coral/benchmark/comparison/ComparisonResult.java`](../coral-benchmark/src/main/java/com/linkedin/coral/benchmark/comparison/ComparisonResult.java)
+- [`coral-benchmark/src/main/java/com/linkedin/coral/benchmark/suite/TranslationTestSuite.java`](../coral-benchmark/src/main/java/com/linkedin/coral/benchmark/suite/TranslationTestSuite.java)
+- [`coral-benchmark/src/main/java/com/linkedin/coral/benchmark/suite/QueryTestResult.java`](../coral-benchmark/src/main/java/com/linkedin/coral/benchmark/suite/QueryTestResult.java)
+- [`coral-benchmark/src/main/java/com/linkedin/coral/benchmark/suite/TestReport.java`](../coral-benchmark/src/main/java/com/linkedin/coral/benchmark/suite/TestReport.java)
 
 ## Read next
 
-- Chapter 13 — `coral-data-generation`: symbolic solver for test data. Pairs directly with this module's Level 3 verification.
-- Chapter 17 — first contributions. "Expand the benchmark corpus" is the canonical easy PR; this chapter explains what that delta looks like.
-- Chapter 16 — PR review companion. When reviewing a translation PR, ask whether benchmark coverage exists for the regression it claims to fix.
+- [Chapter 13](13-coral-data-generation.md) — `coral-data-generation`: symbolic solver for test data. Pairs directly with this module's Level 3 verification.
+- [Chapter 17](17-first-contributions.md) — first contributions. "Expand the benchmark corpus" is the canonical easy PR; this chapter explains what that delta looks like.
+- [Chapter 16](16-pr-review-companion.md) — PR review companion. When reviewing a translation PR, ask whether benchmark coverage exists for the regression it claims to fix.

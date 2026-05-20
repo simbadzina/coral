@@ -2,13 +2,13 @@
 
 ## Goal
 
-Build the simplest possible `SqlCallTransformer` — one that logs every call and returns it unchanged — and wire it into `CoralToTrinoSqlCallConverter` at different positions in the chain. Observe what each position can see. Chapter 07 explains why ordering matters; this exercise makes the consequences impossible to miss. After running it once you will reflexively check chain ordering on every transformer PR you review.
+Build the simplest possible `SqlCallTransformer` — one that logs every call and returns it unchanged — and wire it into `CoralToTrinoSqlCallConverter` at different positions in the chain. Observe what each position can see. [Chapter 07](../07-transformers-pattern.md) explains why ordering matters; this exercise makes the consequences impossible to miss. After running it once you will reflexively check chain ordering on every transformer PR you review.
 
 ## Prerequisites
 
-- Read chapter 07 (the `SqlCallTransformer` pattern) and skim the `CoralToTrinoSqlCallConverter` constructor in `coral-trino/src/main/java/com/linkedin/coral/trino/rel2trino/CoralToTrinoSqlCallConverter.java`. You should be able to name the three concrete transformer subclasses in `coral-common` before starting.
+- Read [chapter 07](../07-transformers-pattern.md) (the `SqlCallTransformer` pattern) and skim the `CoralToTrinoSqlCallConverter` constructor in [`coral-trino/src/main/java/com/linkedin/coral/trino/rel2trino/CoralToTrinoSqlCallConverter.java`](../../coral-trino/src/main/java/com/linkedin/coral/trino/rel2trino/CoralToTrinoSqlCallConverter.java). You should be able to name the three concrete transformer subclasses in `coral-common` before starting.
 - IntelliJ on the repo, with `coral-trino` test sources importable.
-- A test class to run against. We will use `HiveToTrinoConverterTest` in `coral-trino/src/test/java/com/linkedin/coral/trino/rel2trino/HiveToTrinoConverterTest.java` — pick any short test, for example one that exercises `pmod` or `nvl` so the chain has at least one real rewrite firing.
+- A test class to run against. We will use `HiveToTrinoConverterTest` in [`coral-trino/src/test/java/com/linkedin/coral/trino/rel2trino/HiveToTrinoConverterTest.java`](../../coral-trino/src/test/java/com/linkedin/coral/trino/rel2trino/HiveToTrinoConverterTest.java) — pick any short test, for example one that exercises `pmod` or `nvl` so the chain has at least one real rewrite firing.
 
 ## Steps
 
@@ -96,11 +96,11 @@ The `SqlCallTransformers` chain is not a set; it is an ordered sequence, and eac
 2. **A type-aware transformer must see the canonical operator.** `ReturnTypeAdjustmentTransformer` runs after the operator renames so it can adjust the type of the *renamed* operator. Putting it first would adjust the original operator and the rename would then erase the cast.
 3. **`DataTypeDerivedSqlCallConverter` is structurally a second shuttle for the same reason.** The transformers in it need `TypeDerivationUtil`, which is only meaningful once the prior shuttle has stabilized the operator names. Two shuttles is not a quirk — it is the cleanest way to enforce phase ordering when the second phase depends on the type system seeing the post-rename names.
 
-For PR review, this maps directly to chapter 16: any new transformer PR must specify where in the chain it goes and why. "I added it at the end" is not an answer; the question is whether the new transformer needs to see the renamed or the original operator, and whether downstream transformers in the chain rely on its output.
+For PR review, this maps directly to [chapter 16](../16-pr-review-companion.md): any new transformer PR must specify where in the chain it goes and why. "I added it at the end" is not an answer; the question is whether the new transformer needs to see the renamed or the original operator, and whether downstream transformers in the chain rely on its output.
 
 ## Optional extensions
 
-- **Mirror to the Spark side.** Drop a `LoggingSqlCallTransformer` into `coral-spark/src/main/java/com/linkedin/coral/spark/CoralToSparkSqlCallConverter.java` and run a `HiveToSparkSqlConverterTest`. The Spark chain is shorter (the file's own javadoc spells out the head-priority rule for `TransportUDFTransformer` vs. `HiveUDFTransformer`) — observing one fire ahead of the other is a clean demonstration of the rule.
+- **Mirror to the Spark side.** Drop a `LoggingSqlCallTransformer` into [`coral-spark/src/main/java/com/linkedin/coral/spark/CoralToSparkSqlCallConverter.java`](../../coral-spark/src/main/java/com/linkedin/coral/spark/CoralToSparkSqlCallConverter.java) and run a `HiveToSparkSqlConverterTest`. The Spark chain is shorter (the file's own javadoc spells out the head-priority rule for `TransportUDFTransformer` vs. `HiveUDFTransformer`) — observing one fire ahead of the other is a clean demonstration of the rule.
 - **Break the order on purpose.** Reorder two transformers in `CoralToTrinoSqlCallConverter` that you suspect depend on each other (try `HiveUDFTransformer` before the renames). Run the full test suite. Categorize the failures by which transformer's invariant got violated. This is the most efficient way to learn which orderings are load-bearing.
 
 When you are done, revert every change in this exercise. The transformer file and the wiring edits are exploratory — none of it should land in a PR.

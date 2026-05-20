@@ -70,7 +70,7 @@ graph TD
 
 ### Operator renames
 
-The cheapest transformations — same operands, different name. `CoralRegistryOperatorRenameSqlCallTransformer` extends `OperatorRenameSqlCallTransformer` (chapter 07) and resolves the source operator from `StaticHiveFunctionRegistry` so callers can write `new CoralRegistryOperatorRenameSqlCallTransformer("nvl", 2, "coalesce")`. Examples wired in `CoralToTrinoSqlCallConverter`: `nvl → coalesce`, `base64 → to_base64`, `unbase64 → from_base64`, `hex → to_hex`, `unhex → from_hex`, `array_contains → contains`, `instr → strpos`, `get_json_object → json_extract`. Calcite's `SqlStdOperatorTable.RAND` and `RAND_INTEGER` are also renamed to `RANDOM` via the plain `OperatorRenameSqlCallTransformer`.
+The cheapest transformations — same operands, different name. `CoralRegistryOperatorRenameSqlCallTransformer` extends `OperatorRenameSqlCallTransformer` ([chapter 07](07-transformers-pattern.md)) and resolves the source operator from `StaticHiveFunctionRegistry` so callers can write `new CoralRegistryOperatorRenameSqlCallTransformer("nvl", 2, "coalesce")`. Examples wired in `CoralToTrinoSqlCallConverter`: `nvl → coalesce`, `base64 → to_base64`, `unbase64 → from_base64`, `hex → to_hex`, `unhex → from_hex`, `array_contains → contains`, `instr → strpos`, `get_json_object → json_extract`. Calcite's `SqlStdOperatorTable.RAND` and `RAND_INTEGER` are also renamed to `RANDOM` via the plain `OperatorRenameSqlCallTransformer`.
 
 When the rewrite needs argument shuffling — not just a rename — `JsonTransformSqlCallTransformer` consumes a small JSON DSL. `RAND(n) → RANDOM([n])`, `truncate(x, d)` → an expanded scale-then-truncate expression, `date_add`/`date_sub`/`datediff` → Trino's `date_add`/`date_diff` with a `'day'` unit literal prepended. Each call site in `CoralToTrinoSqlCallConverter` is one line of JSON specifying input/output operand layout.
 
@@ -118,11 +118,11 @@ Trino's `UNNEST` differs from Hive's `LATERAL VIEW EXPLODE` in two ways. Trino u
 
 ### JSON, schema evolution, and surface fix-ups
 
-`GenericProjectTransformer` rewrites `generic_project` (the `FuzzyUnionSqlRewriter` placeholder from chapter 04) into combinations of `CAST(ROW(...) AS ROW(...))`, `TRANSFORM(arr, ...)`, and `TRANSFORM_VALUES(map, ...)` to express schema projection over nested types at language level. Trino has no equivalent of Hive/Spark's runtime `GenericProject` UDF because Trino validates return types at compile time; the transformer fans the placeholder out into a tree of typed built-ins. `UnionSqlCallTransformer` handles type alignment across `UNION` branches. `SqlSelectAliasAppenderTransformer` runs first in `CoralToTrinoSqlCallConverter` and appends explicit aliases to every projected field (`SELECT foo.a FROM foo` → `SELECT foo.a AS a FROM foo`), which downstream transformers rely on when matching identifier paths or computing column names.
+`GenericProjectTransformer` rewrites `generic_project` (the `FuzzyUnionSqlRewriter` placeholder from [chapter 04](04-coral-common.md)) into combinations of `CAST(ROW(...) AS ROW(...))`, `TRANSFORM(arr, ...)`, and `TRANSFORM_VALUES(map, ...)` to express schema projection over nested types at language level. Trino has no equivalent of Hive/Spark's runtime `GenericProject` UDF because Trino validates return types at compile time; the transformer fans the placeholder out into a tree of typed built-ins. `UnionSqlCallTransformer` handles type alignment across `UNION` branches. `SqlSelectAliasAppenderTransformer` runs first in `CoralToTrinoSqlCallConverter` and appends explicit aliases to every projected field (`SELECT foo.a FROM foo` → `SELECT foo.a AS a FROM foo`), which downstream transformers rely on when matching identifier paths or computing column names.
 
 ## Trino → Coral IR (POC)
 
-`TrinoToRelConverter` extends `ToRelConverter` (chapter 04) and fills in the five abstract hooks: `getConvertletTable()` returns `CoralConvertletTable` (reused from coral-hive), `getSqlValidator()` returns `HiveSqlValidator` configured with `TRINO_SQL` conformance, `getOperatorTable()` chains `SqlStdOperatorTable.instance()` with `DaliOperatorTable`, `getSqlToRelConverter()` returns a `TrinoSqlToRelConverter`, and `toSqlNode(sql, table)` runs the shaded `TrinoParserDriver` then a `Trino2CoralOperatorConverter` shuttle.
+`TrinoToRelConverter` extends `ToRelConverter` ([chapter 04](04-coral-common.md)) and fills in the five abstract hooks: `getConvertletTable()` returns `CoralConvertletTable` (reused from coral-hive), `getSqlValidator()` returns `HiveSqlValidator` configured with `TRINO_SQL` conformance, `getOperatorTable()` chains `SqlStdOperatorTable.instance()` with `DaliOperatorTable`, `getSqlToRelConverter()` returns a `TrinoSqlToRelConverter`, and `toSqlNode(sql, table)` runs the shaded `TrinoParserDriver` then a `Trino2CoralOperatorConverter` shuttle.
 
 The shuttle is small: `Trino2CoralOperatorConverter.visit(SqlCall)` looks up the operator name in `Trino2CoralOperatorTransformerMap` and applies the matched `OperatorTransformer` if any. The map currently registers one entry — `strpos → instr`. The TODO inline ("keep adding Trino-Specific functions as needed") is honest: this direction is a stub. Views require `TrinoViewExpander`, which in turn calls back into `processView` and `FuzzyUnionSqlRewriter`, but practical use stays on base-table queries.
 
@@ -132,7 +132,7 @@ The shuttle is small: `Trino2CoralOperatorConverter.visit(SqlCall)` looks up the
 
 ## The shaded parser
 
-The Trino parser cannot be used in-process with Calcite because Calcite ships an ANTLR v3 runtime while Trino's parser uses ANTLR v4 — both libraries put their generated classes in `org.antlr.runtime.*`-derived packages, and Coral cannot have both on the classpath unmodified. `shading/coral-trino-parser/build.gradle` solves this with the Gradle Shadow plugin:
+The Trino parser cannot be used in-process with Calcite because Calcite ships an ANTLR v3 runtime while Trino's parser uses ANTLR v4 — both libraries put their generated classes in `org.antlr.runtime.*`-derived packages, and Coral cannot have both on the classpath unmodified. [`shading/coral-trino-parser/build.gradle`](../shading/coral-trino-parser/build.gradle) solves this with the Gradle Shadow plugin:
 
 ```groovy
 relocate 'io.trino', 'coral.shading.io.trino'
@@ -172,47 +172,47 @@ The transformers are intentionally small (~30-100 lines each); adding one is clo
 
 ## Files this chapter discusses
 
-- `coral-trino/src/main/java/com/linkedin/coral/trino/rel2trino/HiveToTrinoConverter.java`
-- `coral-trino/src/main/java/com/linkedin/coral/trino/rel2trino/RelToTrinoConverter.java`
-- `coral-trino/src/main/java/com/linkedin/coral/trino/rel2trino/CoralToTrinoSqlCallConverter.java`
-- `coral-trino/src/main/java/com/linkedin/coral/trino/rel2trino/DataTypeDerivedSqlCallConverter.java`
-- `coral-trino/src/main/java/com/linkedin/coral/trino/rel2trino/TrinoSqlRewriter.java`
-- `coral-trino/src/main/java/com/linkedin/coral/trino/rel2trino/TrinoSqlDialect.java`
-- `coral-trino/src/main/java/com/linkedin/coral/trino/rel2trino/CoralTrinoConfigKeys.java`
-- `coral-trino/src/main/java/com/linkedin/coral/trino/rel2trino/transformers/FromUtcTimestampOperatorTransformer.java`
-- `coral-trino/src/main/java/com/linkedin/coral/trino/rel2trino/transformers/FromUnixtimeOperatorTransformer.java`
-- `coral-trino/src/main/java/com/linkedin/coral/trino/rel2trino/transformers/CurrentTimestampTransformer.java`
-- `coral-trino/src/main/java/com/linkedin/coral/trino/rel2trino/transformers/ToDateOperatorTransformer.java`
-- `coral-trino/src/main/java/com/linkedin/coral/trino/rel2trino/transformers/NamedStructToCastTransformer.java`
-- `coral-trino/src/main/java/com/linkedin/coral/trino/rel2trino/transformers/MapValueConstructorTransformer.java`
-- `coral-trino/src/main/java/com/linkedin/coral/trino/rel2trino/transformers/NullOrderingTransformer.java`
-- `coral-trino/src/main/java/com/linkedin/coral/trino/rel2trino/transformers/UnnestOperatorTransformer.java`
-- `coral-trino/src/main/java/com/linkedin/coral/trino/rel2trino/transformers/AsOperatorTransformer.java`
-- `coral-trino/src/main/java/com/linkedin/coral/trino/rel2trino/transformers/JoinSqlCallTransformer.java`
-- `coral-trino/src/main/java/com/linkedin/coral/trino/rel2trino/transformers/SubstrOperatorTransformer.java`
-- `coral-trino/src/main/java/com/linkedin/coral/trino/rel2trino/transformers/SubstrIndexTransformer.java`
-- `coral-trino/src/main/java/com/linkedin/coral/trino/rel2trino/transformers/ConcatOperatorTransformer.java`
-- `coral-trino/src/main/java/com/linkedin/coral/trino/rel2trino/transformers/CollectListOrSetFunctionTransformer.java`
-- `coral-trino/src/main/java/com/linkedin/coral/trino/rel2trino/transformers/CoralRegistryOperatorRenameSqlCallTransformer.java`
-- `coral-trino/src/main/java/com/linkedin/coral/trino/rel2trino/transformers/CastOperatorTransformer.java`
-- `coral-trino/src/main/java/com/linkedin/coral/trino/rel2trino/transformers/ReturnTypeAdjustmentTransformer.java`
-- `coral-trino/src/main/java/com/linkedin/coral/trino/rel2trino/transformers/HiveUDFTransformer.java`
-- `coral-trino/src/main/java/com/linkedin/coral/trino/rel2trino/transformers/GenericProjectTransformer.java`
-- `coral-trino/src/main/java/com/linkedin/coral/trino/rel2trino/transformers/UnionSqlCallTransformer.java`
-- `coral-trino/src/main/java/com/linkedin/coral/trino/rel2trino/transformers/SqlSelectAliasAppenderTransformer.java`
-- `coral-trino/src/main/java/com/linkedin/coral/trino/trino2rel/TrinoToRelConverter.java`
-- `coral-trino/src/main/java/com/linkedin/coral/trino/trino2rel/Trino2CoralOperatorConverter.java`
-- `coral-trino/src/main/java/com/linkedin/coral/trino/trino2rel/Trino2CoralOperatorTransformerMap.java`
-- `coral-trino/src/main/java/com/linkedin/coral/trino/trino2rel/TrinoSqlToRelConverter.java`
-- `coral-trino/src/main/java/com/linkedin/coral/trino/trino2rel/TrinoViewExpander.java`
-- `coral-trino/src/main/java/com/linkedin/coral/trino/trino2rel/TrinoSqlConformance.java`
-- `coral-trino/src/main/java/com/linkedin/coral/trino/trino2rel/parsetree/TrinoParserDriver.java`
-- `coral-trino/src/test/java/com/linkedin/coral/trino/rel2trino/HiveToTrinoConverterTest.java`
-- `shading/coral-trino-parser/build.gradle`
+- [`coral-trino/src/main/java/com/linkedin/coral/trino/rel2trino/HiveToTrinoConverter.java`](../coral-trino/src/main/java/com/linkedin/coral/trino/rel2trino/HiveToTrinoConverter.java)
+- [`coral-trino/src/main/java/com/linkedin/coral/trino/rel2trino/RelToTrinoConverter.java`](../coral-trino/src/main/java/com/linkedin/coral/trino/rel2trino/RelToTrinoConverter.java)
+- [`coral-trino/src/main/java/com/linkedin/coral/trino/rel2trino/CoralToTrinoSqlCallConverter.java`](../coral-trino/src/main/java/com/linkedin/coral/trino/rel2trino/CoralToTrinoSqlCallConverter.java)
+- [`coral-trino/src/main/java/com/linkedin/coral/trino/rel2trino/DataTypeDerivedSqlCallConverter.java`](../coral-trino/src/main/java/com/linkedin/coral/trino/rel2trino/DataTypeDerivedSqlCallConverter.java)
+- [`coral-trino/src/main/java/com/linkedin/coral/trino/rel2trino/TrinoSqlRewriter.java`](../coral-trino/src/main/java/com/linkedin/coral/trino/rel2trino/TrinoSqlRewriter.java)
+- [`coral-trino/src/main/java/com/linkedin/coral/trino/rel2trino/TrinoSqlDialect.java`](../coral-trino/src/main/java/com/linkedin/coral/trino/rel2trino/TrinoSqlDialect.java)
+- [`coral-trino/src/main/java/com/linkedin/coral/trino/rel2trino/CoralTrinoConfigKeys.java`](../coral-trino/src/main/java/com/linkedin/coral/trino/rel2trino/CoralTrinoConfigKeys.java)
+- [`coral-trino/src/main/java/com/linkedin/coral/trino/rel2trino/transformers/FromUtcTimestampOperatorTransformer.java`](../coral-trino/src/main/java/com/linkedin/coral/trino/rel2trino/transformers/FromUtcTimestampOperatorTransformer.java)
+- [`coral-trino/src/main/java/com/linkedin/coral/trino/rel2trino/transformers/FromUnixtimeOperatorTransformer.java`](../coral-trino/src/main/java/com/linkedin/coral/trino/rel2trino/transformers/FromUnixtimeOperatorTransformer.java)
+- [`coral-trino/src/main/java/com/linkedin/coral/trino/rel2trino/transformers/CurrentTimestampTransformer.java`](../coral-trino/src/main/java/com/linkedin/coral/trino/rel2trino/transformers/CurrentTimestampTransformer.java)
+- [`coral-trino/src/main/java/com/linkedin/coral/trino/rel2trino/transformers/ToDateOperatorTransformer.java`](../coral-trino/src/main/java/com/linkedin/coral/trino/rel2trino/transformers/ToDateOperatorTransformer.java)
+- [`coral-trino/src/main/java/com/linkedin/coral/trino/rel2trino/transformers/NamedStructToCastTransformer.java`](../coral-trino/src/main/java/com/linkedin/coral/trino/rel2trino/transformers/NamedStructToCastTransformer.java)
+- [`coral-trino/src/main/java/com/linkedin/coral/trino/rel2trino/transformers/MapValueConstructorTransformer.java`](../coral-trino/src/main/java/com/linkedin/coral/trino/rel2trino/transformers/MapValueConstructorTransformer.java)
+- [`coral-trino/src/main/java/com/linkedin/coral/trino/rel2trino/transformers/NullOrderingTransformer.java`](../coral-trino/src/main/java/com/linkedin/coral/trino/rel2trino/transformers/NullOrderingTransformer.java)
+- [`coral-trino/src/main/java/com/linkedin/coral/trino/rel2trino/transformers/UnnestOperatorTransformer.java`](../coral-trino/src/main/java/com/linkedin/coral/trino/rel2trino/transformers/UnnestOperatorTransformer.java)
+- [`coral-trino/src/main/java/com/linkedin/coral/trino/rel2trino/transformers/AsOperatorTransformer.java`](../coral-trino/src/main/java/com/linkedin/coral/trino/rel2trino/transformers/AsOperatorTransformer.java)
+- [`coral-trino/src/main/java/com/linkedin/coral/trino/rel2trino/transformers/JoinSqlCallTransformer.java`](../coral-trino/src/main/java/com/linkedin/coral/trino/rel2trino/transformers/JoinSqlCallTransformer.java)
+- [`coral-trino/src/main/java/com/linkedin/coral/trino/rel2trino/transformers/SubstrOperatorTransformer.java`](../coral-trino/src/main/java/com/linkedin/coral/trino/rel2trino/transformers/SubstrOperatorTransformer.java)
+- [`coral-trino/src/main/java/com/linkedin/coral/trino/rel2trino/transformers/SubstrIndexTransformer.java`](../coral-trino/src/main/java/com/linkedin/coral/trino/rel2trino/transformers/SubstrIndexTransformer.java)
+- [`coral-trino/src/main/java/com/linkedin/coral/trino/rel2trino/transformers/ConcatOperatorTransformer.java`](../coral-trino/src/main/java/com/linkedin/coral/trino/rel2trino/transformers/ConcatOperatorTransformer.java)
+- [`coral-trino/src/main/java/com/linkedin/coral/trino/rel2trino/transformers/CollectListOrSetFunctionTransformer.java`](../coral-trino/src/main/java/com/linkedin/coral/trino/rel2trino/transformers/CollectListOrSetFunctionTransformer.java)
+- [`coral-trino/src/main/java/com/linkedin/coral/trino/rel2trino/transformers/CoralRegistryOperatorRenameSqlCallTransformer.java`](../coral-trino/src/main/java/com/linkedin/coral/trino/rel2trino/transformers/CoralRegistryOperatorRenameSqlCallTransformer.java)
+- [`coral-trino/src/main/java/com/linkedin/coral/trino/rel2trino/transformers/CastOperatorTransformer.java`](../coral-trino/src/main/java/com/linkedin/coral/trino/rel2trino/transformers/CastOperatorTransformer.java)
+- [`coral-trino/src/main/java/com/linkedin/coral/trino/rel2trino/transformers/ReturnTypeAdjustmentTransformer.java`](../coral-trino/src/main/java/com/linkedin/coral/trino/rel2trino/transformers/ReturnTypeAdjustmentTransformer.java)
+- [`coral-trino/src/main/java/com/linkedin/coral/trino/rel2trino/transformers/HiveUDFTransformer.java`](../coral-trino/src/main/java/com/linkedin/coral/trino/rel2trino/transformers/HiveUDFTransformer.java)
+- [`coral-trino/src/main/java/com/linkedin/coral/trino/rel2trino/transformers/GenericProjectTransformer.java`](../coral-trino/src/main/java/com/linkedin/coral/trino/rel2trino/transformers/GenericProjectTransformer.java)
+- [`coral-trino/src/main/java/com/linkedin/coral/trino/rel2trino/transformers/UnionSqlCallTransformer.java`](../coral-trino/src/main/java/com/linkedin/coral/trino/rel2trino/transformers/UnionSqlCallTransformer.java)
+- [`coral-trino/src/main/java/com/linkedin/coral/trino/rel2trino/transformers/SqlSelectAliasAppenderTransformer.java`](../coral-trino/src/main/java/com/linkedin/coral/trino/rel2trino/transformers/SqlSelectAliasAppenderTransformer.java)
+- [`coral-trino/src/main/java/com/linkedin/coral/trino/trino2rel/TrinoToRelConverter.java`](../coral-trino/src/main/java/com/linkedin/coral/trino/trino2rel/TrinoToRelConverter.java)
+- [`coral-trino/src/main/java/com/linkedin/coral/trino/trino2rel/Trino2CoralOperatorConverter.java`](../coral-trino/src/main/java/com/linkedin/coral/trino/trino2rel/Trino2CoralOperatorConverter.java)
+- [`coral-trino/src/main/java/com/linkedin/coral/trino/trino2rel/Trino2CoralOperatorTransformerMap.java`](../coral-trino/src/main/java/com/linkedin/coral/trino/trino2rel/Trino2CoralOperatorTransformerMap.java)
+- [`coral-trino/src/main/java/com/linkedin/coral/trino/trino2rel/TrinoSqlToRelConverter.java`](../coral-trino/src/main/java/com/linkedin/coral/trino/trino2rel/TrinoSqlToRelConverter.java)
+- [`coral-trino/src/main/java/com/linkedin/coral/trino/trino2rel/TrinoViewExpander.java`](../coral-trino/src/main/java/com/linkedin/coral/trino/trino2rel/TrinoViewExpander.java)
+- [`coral-trino/src/main/java/com/linkedin/coral/trino/trino2rel/TrinoSqlConformance.java`](../coral-trino/src/main/java/com/linkedin/coral/trino/trino2rel/TrinoSqlConformance.java)
+- [`coral-trino/src/main/java/com/linkedin/coral/trino/trino2rel/parsetree/TrinoParserDriver.java`](../coral-trino/src/main/java/com/linkedin/coral/trino/trino2rel/parsetree/TrinoParserDriver.java)
+- [`coral-trino/src/test/java/com/linkedin/coral/trino/rel2trino/HiveToTrinoConverterTest.java`](../coral-trino/src/test/java/com/linkedin/coral/trino/rel2trino/HiveToTrinoConverterTest.java)
+- [`shading/coral-trino-parser/build.gradle`](../shading/coral-trino-parser/build.gradle)
 
 ## Read next
 
-- Chapter 07 — the `SqlCallTransformer` framework that every transformer here extends.
-- Chapter 12 — coral-benchmark, where Trino changes get validated against actual query results.
-- Chapter 15 — LinkedIn specifics; Transport UDFs (referenced by `HiveUDFTransformer`) and the fuzzy-union story (referenced by `GenericProjectTransformer`).
-- Chapter 16 — PR review companion with a transformer-specific checklist.
+- [Chapter 07](07-transformers-pattern.md) — the `SqlCallTransformer` framework that every transformer here extends.
+- [Chapter 12](12-coral-benchmark.md) — coral-benchmark, where Trino changes get validated against actual query results.
+- [Chapter 15](15-linkedin-specifics.md) — LinkedIn specifics; Transport UDFs (referenced by `HiveUDFTransformer`) and the fuzzy-union story (referenced by `GenericProjectTransformer`).
+- [Chapter 16](16-pr-review-companion.md) — PR review companion with a transformer-specific checklist.
