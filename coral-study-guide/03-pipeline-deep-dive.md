@@ -73,7 +73,7 @@ Seven transitions, six classes worth knowing in detail. The rest of this chapter
 
 ## Stage 4 — Validation and type derivation
 
-**Class:** `HiveSqlValidator extends AbstractSqlValidator`.
+**Class:** `HiveSqlValidator extends SqlValidatorImpl`.
 
 **File:** `coral-hive/src/main/java/com/linkedin/coral/hive/hive2rel/HiveSqlValidator.java`.
 
