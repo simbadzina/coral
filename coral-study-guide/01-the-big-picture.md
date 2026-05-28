@@ -2,6 +2,13 @@
 
 Coral is a SQL translation, analysis, and rewrite engine built on top of Apache Calcite. It defines an intermediate representation — Coral IR — that captures the semantics of a query independent of any specific SQL dialect, then provides a library of frontends that parse dialects into IR and backends that emit dialects from IR. Read this chapter to understand why Coral exists, what shape the IR takes, and where every module lives on the map.
 
+> **Reading time** ~8 min  ·  **Prerequisites** none
+>
+> **Key takeaways**
+> - Coral collapses N×N dialect translation into 2×N by routing every dialect through a shared intermediate representation, the Coral IR.
+> - Coral IR is Calcite's two-layer representation — the surface-level `SqlNode` AST and the semantic `RelNode` plan — tightened with Hive-specific semantics rather than a custom data structure.
+> - Every module depends on `coral-common`, which holds the abstract `ToRelConverter`, the Calcite extensions, and the schema layer that frontends and backends build on.
+
 ## The problem Coral solves
 
 LinkedIn (and any large data platform) deals with many SQL dialects: HiveQL, Spark SQL, Trino, Pig Latin, sometimes Presto. A single logical view may need to run on three or four of these engines. The naive approach is to write N × N translators — one for each pair of dialects. Coral collapses this to 2 × N: write one frontend per dialect to parse into IR, write one backend per dialect to emit from IR.
@@ -143,6 +150,12 @@ You can use Coral without any of these; if you read code that mentions `DaliOper
 ## Why the IR is faithful to Hive
 
 Coral's type system, validator, and converter implementations all skew Hive-flavored. `HiveTypeSystem` defines precision rules. `HiveSqlValidator` is the validator. `HiveRelBuilder` overrides UNNEST quirks. This is a historical artifact: Coral started as a Hive-centric tool inside LinkedIn before generalizing. The legacy shows up in places — most visibly in `ToRelConverter.processViewWithCoralCatalog`, which still converts Iceberg tables to a "minimal Hive Table" for backward compatibility (tracked in issue #575). When reviewing PRs in `coral-common` or `coral-hive`, watch for whether the change is paving over this legacy or entrenching it.
+
+## Self-check
+
+1. Why does the IR layer only pay off once a platform supports more than two dialects, and how does the translator count change from N×N to 2×N?
+2. What does each of the two IR layers — `SqlNode` and `RelNode` — preserve, and why does a dialect backend want one while a schema deriver wants the other?
+3. Which Coral-specific behaviors make the IR "Hive-flavored," and which class still converts Iceberg tables to a minimal Hive table for backward compatibility?
 
 ## What to read next
 

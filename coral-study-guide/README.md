@@ -10,7 +10,7 @@ There are three reading modes:
 
 1. **Sequential learner**: read in order 00 → 19. Roughly 8-12 hours plus exercises. Builds the full mental model.
 2. **Reviewer**: a PR lands in module *X*. Jump to the matching chapter (06 for coral-hive, 09 for coral-trino, ...) plus [chapter 16](16-pr-review-companion.md) for the per-module review checklist.
-3. **Speed-run (2 hours)**: read `01-the-big-picture.md`, `03-pipeline-deep-dive.md`, and `16-pr-review-companion.md`. Enough to follow a code review conversation and not be lost.
+3. **Time-boxed**: see [RAMP.md](RAMP.md) for three concrete plans — a ~1-hour speed-run, an 8-10 hour reviewer ramp, and the full-mastery route — with a spaced-repetition schedule. Each chapter also carries a reading-time estimate in its front-matter block.
 
 ## Prerequisites
 
@@ -24,6 +24,7 @@ There are three reading modes:
 | # | Chapter | What it covers |
 |---|---|---|
 |   | [README](README.md) | This file |
+|   | [RAMP.md](RAMP.md) | Time-boxed learning paths + spaced-repetition schedule |
 | 00 | [Prerequisites](00-prerequisites.md) | Build setup, Gradle, IDE, ANTLR-generated sources |
 | 01 | [The big picture](01-the-big-picture.md) | Coral as an IR project; the N×N→2N argument; module map |
 | 02 | [Calcite primer](02-calcite-primer.md) | `SqlNode`, `RelNode`, convertlets, `RelBuilder`, `SqlValidator` |

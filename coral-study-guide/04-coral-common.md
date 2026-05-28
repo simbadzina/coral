@@ -2,6 +2,13 @@
 
 `coral-common` is the module every other Coral module depends on. It holds the abstract `ToRelConverter` that wires Calcite's `FrameworkConfig` together, the Calcite `Schema` adapters that bridge LinkedIn's table metadata into Calcite, a small number of Calcite extension classes that fix Hive-specific semantics, and a few cross-cutting helpers (the `CoralCatalog` interface, the `CoralDataType` hierarchy, the `SqlCallTransformer` framework, and `FuzzyUnionSqlRewriter`). After this chapter you should know which subpackage owns what, and how a concrete dialect (Hive, Trino) plugs five abstract hooks into the template to become a working converter.
 
+> **Reading time** ~15 min  ·  **Prerequisites** [chapter 02](02-calcite-primer.md), [chapter 03](03-pipeline-deep-dive.md)
+>
+> **Key takeaways**
+> - `ToRelConverter` is the abstract converter template; a dialect becomes a working converter by implementing five starred hooks (`getConvertletTable`, `getSqlValidator`, `getOperatorTable`, `getSqlToRelConverter`, `toSqlNode`).
+> - The schema layer runs as two parallel hierarchies — a legacy `HiveMetastoreClient`-keyed one and a modern `CoralCatalog`-keyed one — and `CoralDatabaseSchema.getTable()` dispatches each lookup to a `HiveCalciteTableAdapter`, `HiveCalciteViewAdapter`, or `IcebergCalciteTableAdapter`.
+> - Coral overrides three Calcite classes in `coral-common` — `HiveRelBuilder`, `HiveUncollect`, and `HiveTypeSystem` — to align Calcite's defaults with Hive semantics, while `HiveRexBuilder` lives in `coral-hive` instead.
+
 ## Package map
 
 ```mermaid
@@ -191,6 +198,13 @@ A few classes don't slot into the converter/schema/extension story but are still
 **The `types/` package** holds the `CoralDataType` hierarchy — a dialect-neutral type representation independent of both Calcite's `RelDataType` (which carries framework state) and Hive's `TypeInfo` (which carries Hadoop dependencies). [Chapter 05](05-type-system-and-catalog.md) covers the types and their conversion utilities.
 
 **`utils/` and `calcite/`** are small helper packages. `TypeDerivationUtil` lets a transformer ask "what would Calcite infer as the type of this `SqlCall`?" without re-running the whole validator. `RelDataTypeToHiveTypeStringConverter` produces the Hive type string that `GenericProjectFunction` embeds in its third operand. `CalciteUtil` wraps `SqlParser` with Coral's preferred parser config (Oracle 10 conformance, case-insensitive, unchanged casing).
+
+## Self-check
+
+1. Which five abstract methods must a `ToRelConverter` subclass implement, and what does each one supply to the pipeline?
+2. How does `CoralDatabaseSchema.getTable()` decide which Calcite adapter to return, and which adapter implements `TranslatableTable` to expand a view's body?
+3. Why does `HiveUncollect` override Calcite's `Uncollect`, and what does `HiveRelBuilder.rename(...)` special-case to keep `CROSS JOIN UNNEST(...)` in the unparsed output?
+4. What problem does `FuzzyUnionSqlRewriter` solve for Dali views, and how does it use `GenericProjectFunction` as a placeholder for backends to resolve?
 
 ## Files this chapter discusses
 

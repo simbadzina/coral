@@ -2,6 +2,13 @@
 
 This chapter teaches just enough Apache Calcite vocabulary to read Coral source without tab-switching to Calcite's javadoc. After this, you can open `HiveToRelConverter` and recognize every Calcite type and every Coral subclass at a glance. The strategy is: name the Calcite concept, show the shape it takes, then point at the Coral class that extends it. The next chapter (03) ties them together by walking a query through the pipeline.
 
+> **Reading time** ~14 min  ·  **Prerequisites** [chapter 01](01-the-big-picture.md)
+>
+> **Key takeaways**
+> - Calcite represents a query in three types — `SqlNode` (AST), `RelNode` (relational plan), and `RexNode` (row expression living inside a `RelNode`) — and knowing which layer you are at tells you which expression type to expect.
+> - Coral plugs into Calcite by subclassing extension points — `HiveSqlValidator`, `HiveSqlToRelConverter`, `CoralConvertletTable`, `DaliOperatorTable`, `HiveRelBuilder`, `HiveTypeSystem` — overriding a small surface and threading the override through `FrameworkConfig`.
+> - `CoralConvertletTable` defines only two custom convertlets — preserving casts as abstract casts and handling `FunctionFieldReferenceOperator` — and falls through to `StandardConvertletTable` for everything else.
+
 ## The two-layer IR
 
 Calcite represents a query in two trees, sequentially produced:
@@ -227,6 +234,13 @@ Every Coral converter assembles its `FrameworkConfig` once at construction. `Hiv
 | `FrameworkConfig` assembly | `ToRelConverter` constructors | [`coral-common/src/main/java/com/linkedin/coral/common/ToRelConverter.java`](../coral-common/src/main/java/com/linkedin/coral/common/ToRelConverter.java) |
 
 The pattern is uniform: Coral subclasses a Calcite extension point, overrides a small surface, and threads the override through `FrameworkConfig` and the `ToRelConverter` constructor. If you remember the Calcite interface, you can predict where Coral plugs in.
+
+## Self-check
+
+1. What is a convertlet, and why does `CoralConvertletTable` override `convertCast` to emit an abstract cast instead of letting `StandardConvertletTable` fold it?
+2. What are the two dominant responsibilities of `SqlValidator`, and where are the derived type annotations stored after validation completes?
+3. How does Coral wire its dialect functions into Calcite's function resolution without modifying the `SqlOperatorTable` contract?
+4. Which Coral classes does `FrameworkConfig` hold together, and how does the next chapter's pipeline exercise each of them on a real query?
 
 ## Files this chapter discusses
 

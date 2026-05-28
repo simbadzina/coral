@@ -2,6 +2,13 @@
 
 `coral-schema` turns a Hive view into a standardized Avro schema. It is the backend used when the consumer of a Coral view is not a SQL engine but LinkedIn's data infrastructure — Kafka topics, Espresso secondary indexes, event pipelines, and Iceberg datasets — all of which transport records keyed by Avro schemas. After this chapter you can navigate `ViewToAvroSchemaConverter` end-to-end, predict what each `RelNode` operator contributes to the output schema, and decide whether a change belongs in the legacy `MergeHiveSchemaWithAvro` engine or the newer `MergeCoralSchemaWithAvro` engine that drives Iceberg-first table resolution.
 
+> **Reading time** ~15 min  ·  **Prerequisites** [chapter 05](05-type-system-and-catalog.md)
+>
+> **Key takeaways**
+> - `RelToAvroSchemaConverter` is a `RelShuttleImpl` that walks the view's `RelNode` bottom-up, building one Avro schema per operator into a `Map<RelNode, Schema>` and returning the root node's schema as the view's Avro schema.
+> - Pass-through columns (through `LogicalFilter` or a bare `RexInputRef`) retain their base-table nullability, while computed expressions take nullability from operator semantics, so a transformed column is conservatively widened to nullable.
+> - `MergeHiveSchemaWithAvro` (legacy) takes field names and nullability from the partner Avro, whereas `MergeCoralSchemaWithAvro` (the Iceberg-first replacement from PR #600) treats `CoralDataType` as the source of truth and uses the partner only for metadata.
+
 ## Why Avro
 
 LinkedIn's data platform is Avro-centric. Kafka topics carry Avro records and require an Avro schema in the schema registry before producers can publish. Espresso uses Avro to define document and secondary-index schemas. Tracking and event pipelines marshal everything through Avro. Even Iceberg datasets, which can be queried as SQL, ship with an Avro view of their schema for downstream Avro-only consumers. A logical view declared in HiveQL therefore needs an Avro schema computed from the view definition, not the underlying base tables — `SELECT lower(name) AS name FROM users` produces a different Avro schema than `users` even though the column count matches, because `lower(name)` is non-null only if `name` is.
@@ -130,6 +137,12 @@ The fork point is in `SchemaUtilities.getAvroSchemaForTable(CoralTable, strictMo
 ## Reviewer note
 
 A PR that touches nullability semantics, field matching, or any aspect of the merge contract should add a test case under `MergeCoralSchemaWithAvroTests` — the existing test names model the spec, and a regression there is what downstream Iceberg consumers will hit first. Iceberg-related changes should prefer `MergeCoralSchemaWithAvro`; touching `MergeHiveSchemaWithAvro` is acceptable for legacy-path fixes but should be flagged as not the long-term destination. Watch for new code that adds a `HiveMetastoreClient` constructor when a `CoralCatalog` constructor already exists — `ViewToAvroSchemaConverter` and `RelToAvroSchemaConverter` already keep both side-by-side, and new public surface area should default to `CoralCatalog`.
+
+## Self-check
+
+1. A view's `RelNode` is `LogicalProject(LogicalFilter(TableScan))`. Walk through how `RelToAvroSchemaConverter` builds the final schema — which node populates `schemaMap` first, and where does the root schema come from?
+2. A reviewer sees a PR that derives a column via `CONCAT(a, b)` and asks whether the output field should be nullable. What rule does `RelToAvroSchemaConverter` apply, and how does `SchemaUtilities.isFieldNullable` decide?
+3. When `SchemaUtilities.getAvroSchemaForTable` resolves an `IcebergTable` versus a `HiveTable`, which merge engine runs in each case, and how does that relate to the `CoralCatalog` migration in [chapter 05](05-type-system-and-catalog.md)?
 
 ## Files this chapter discusses
 

@@ -2,6 +2,13 @@
 
 This chapter walks one Hive query from a SQL string into a Spark SQL string, stage by stage. Every stage names the class that runs it, the data structure it produces, and a debugger breakpoint you can set. After this, you should be able to predict where a PR's change will land in the pipeline just by reading the diff.
 
+> **Reading time** ~9 min  ·  **Prerequisites** [chapter 01](01-the-big-picture.md) (and [chapter 02](02-calcite-primer.md) if Calcite is rusty)
+>
+> **Key takeaways**
+> - A Hive query reaches Spark SQL through seven transitions: ANTLR parse, `ParseTreeBuilder`, `HiveSqlNodeToCoralSqlNodeConverter`, `HiveSqlValidator`, `HiveSqlToRelConverter`, the `coral-spark` backend transforms, and final unparsing via `SparkSqlRewriter`.
+> - Function resolution happens in `ParseTreeBuilder` via `HiveFunctionResolver`, and a failure there is the "function not found" error users see.
+> - Free SQL strings enter through `convertSql`, while views enter through `convertView`/`processView`, which fetches the view definition from the catalog and runs `FuzzyUnionSqlRewriter` before the shared stages.
+
 The example query, used throughout:
 
 ```sql
@@ -182,6 +189,13 @@ The view path also runs `FuzzyUnionSqlRewriter` after `ParseTreeBuilder` to reco
 5. Pipe the final `RelNode` into `CoralSpark.create(...)` (from a Spark-side test) and watch stages 6-7.
 
 Exercise 01 in this guide is the longer-form version of this walk; do it once.
+
+## Self-check
+
+1. Name the seven pipeline transitions in order, and for each name the class that runs it.
+2. Why does the pipeline build an `ASTNode` tree before a `SqlNode` tree, and what does each representation buy you?
+3. At which stage does function resolution occur, and which resolver and registry back it?
+4. How does the view entry point (`convertView`/`processView`) differ from the free-SQL entry point (`convertSql`), and which `coral-common` class handles that branching?
 
 ## What to read next
 

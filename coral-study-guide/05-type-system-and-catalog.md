@@ -2,6 +2,13 @@
 
 Two intertwined abstractions sit in `coral-common` and surface in every other module: `CoralDataType`, a dialect-neutral description of types, and `CoralCatalog`, a unified table-lookup interface that hides whether a table comes from the Hive Metastore (HMS) or an Iceberg catalog. After this chapter you can read the `types/` and `catalog/` packages without bouncing back to Calcite or HMS docs, and you can spot the `HiveMetastoreClient` → `CoralCatalog` migration in a PR diff.
 
+> **Reading time** ~16 min  ·  **Prerequisites** [chapter 04](04-coral-common.md)
+>
+> **Key takeaways**
+> - `CoralDataType` is a factory-free, Hadoop-free, Calcite-free type interface whose immutable implementations carry dialect-neutral schema between converters that route through `HiveToCoralTypeConverter` or `IcebergToCoralTypeConverter` in and `CoralTypeToRelDataTypeConverter` out.
+> - `HiveTypeSystem` centralizes Hive's precision, scale, and arithmetic-widening rules, so every backend's `RelDataTypeFactory` observes the same type behavior and a change here ripples to all of them.
+> - `CoralCatalog` is a four-method, dialect-neutral table-lookup interface whose `HiveTable` and `IcebergTable` implementations supersede the deprecated `HiveMetastoreClient`, with `IcebergHiveTableConverter` a temporary bridge tracked by issue #575.
+
 ## Why a separate type system exists
 
 Coral has long had a type plumbing problem. Calcite's `RelDataType` is the type that ends up inside `RelNode` trees, but constructing one requires a `RelDataTypeFactory` and a configured type system — it is loaded with framework state. Hive's `TypeInfo` is the type that arrives from HMS, but it drags in the entire `org.apache.hadoop.hive.serde2` jar and is meaningless to Iceberg code. Neither is a good lingua franca for a catalog that needs to describe an Iceberg table without booting Calcite, or for a frontend that wants to talk about a table's schema before validation.
@@ -230,6 +237,13 @@ The pattern is consistent across the package: the interface is dialect-neutral; 
 - Touching `HiveTypeSystem` precision rules: assume every backend (Hive, Spark, Trino, Pig, schema) feels the change. Add tests on at least two backends.
 - Adding a new Iceberg type case: also add the Hive equivalent so the two converters stay symmetric where the underlying types are.
 - Calling `IcebergHiveTableConverter.toHiveTable(...)` from new code: probably wrong. The bridge is for `ToRelConverter` only, and even that is tracked for removal.
+
+## Self-check
+
+1. Why does `STRING` exist as a distinct `CoralTypeKind` from `VARCHAR` when both collapse to the same Calcite type, and how does each converter in the chain treat it?
+2. `HiveToCoralTypeConverter` marks every produced type nullable while `IcebergToCoralTypeConverter` carries nullability through — why does that difference exist, and where does it come from in each source format?
+3. If you changed `deriveDecimalDivideType` in `HiveTypeSystem`, which backends would observe the change, and what does that imply for the tests a PR should include?
+4. Why does `IcebergHiveTableConverter` synthesize an HMS `Table` instead of letting `IcebergTable` flow straight through `ToRelConverter`, and what would have to change in `coral-hive` (per [chapter 06](06-coral-hive.md)) to retire it?
 
 ## Files this chapter discusses
 

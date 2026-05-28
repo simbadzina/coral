@@ -2,6 +2,13 @@
 
 `coral-spark-catalog` plugs Coral into Spark 3.5's `CatalogExtension` SPI so a Spark session can read Hive views without anyone running `CoralSpark.create()` first. When a query references a view, Spark calls into the extension, the extension translates the view on the fly, and Spark executes the resulting Spark SQL. After this chapter you know how the SPI hookup works, what the `loadView` path does step by step, which operations the catalog intercepts versus delegates, and where UDFs are registered.
 
+> **Reading time** ~12 min  ·  **Prerequisites** [chapter 08](08-coral-spark.md)
+>
+> **Key takeaways**
+> - `CoralSparkViewCatalog` implements Spark 3.5's `CatalogExtension` SPI and is wired in by setting `spark.sql.catalog.spark_catalog`, so view resolution is intercepted while table, namespace, and function calls forward to the stashed `sessionCatalog` delegate.
+> - `loadView` resolves the view from HMS, derives its Avro schema with `ViewToAvroSchemaConverter`, parses it with `HiveToRelConverter`, translates it through `CoralSpark.create`, parse-checks the output, registers any UDFs, and returns a `View` Spark can execute.
+> - `registerUDFs` dispatches on `udfType`, using a reflection check (`isSparkUdf`) to distinguish Spark-native UDFs tagged `HIVE_CUSTOM_UDF` from genuine Hive UDFs, and uses the static `register(String)` entry point for `TRANSPORTABLE_UDF`.
+
 ## Why this module exists
 
 [Chapter 08](08-coral-spark.md) walked `CoralSpark.create(RelNode, HiveMetastoreClient)` end to end. That API works when the caller already has the view's `RelNode` in hand — typically because they parsed the view definition out of HMS themselves and ran `HiveToRelConverter.convertView(...)` on it. In a real Spark application that is awkward: a query like `SELECT * FROM v JOIN w ON ...` references views by name; the application doesn't enumerate them ahead of time, and pre-translating every view in the warehouse is not a workable strategy.
@@ -136,6 +143,12 @@ Recent PR history:
 - **#585** — embedded-metastore upgrade from Hive 1.2.2 to 2.3.9 (the Jackson and Calcite exclusions in `build.gradle` are from this PR).
 
 This module is one of the newer Coral pieces — all four PRs landed inside the last release cycle. When reviewing changes here, treat the SPI surface as the contract: a method that throws `UnsupportedOperationException` was a deliberate choice, and a method that delegates to `sessionCatalog` is doing so because Spark already handles that path correctly.
+
+## Self-check
+
+1. Trace `loadView` end to end: what does the catalog pull from HMS, why does it re-parse the Avro schema string with validation off before calling `SchemaConverters.toSqlType`, and why is the translated SQL parsed twice?
+2. A reviewer sees a PR add a `createView` implementation to `CoralSparkViewCatalog`. Why does the existing code throw `UnsupportedOperationException` there instead, and which operations are forwarded to `sessionCatalog` versus run through Coral?
+3. `CoralSpark.create` returns a `List<SparkUDFInfo>` ([chapter 08](08-coral-spark.md)). How does `registerUDFs` decide whether a `HIVE_CUSTOM_UDF` is registered as a Spark-native function or through Spark's Hive-UDF path?
 
 ## Files this chapter discusses
 

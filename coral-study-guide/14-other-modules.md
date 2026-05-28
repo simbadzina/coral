@@ -2,6 +2,13 @@
 
 The remaining six modules each have a focused scope: one legacy emitter, one Python-bridged dbt integration, one IR-rewriting transformer, one debug visualizer, one Spring service, and one reverse-direction Spark parser. After this chapter you have enough orientation to read code in any of them and to recognize what kinds of PRs land there.
 
+> **Reading time** ~13 min  ·  **Prerequisites** [chapter 01](01-the-big-picture.md)
+>
+> **Key takeaways**
+> - `coral-pig`, `coral-incremental`, and `coral-spark-plan` are all single-direction `RelNode` workers — Pig Latin emission, `_delta`-union incremental rewrite, and Spark `EXPLAIN`-text-to-`RelNode` parsing respectively — and each carries an explicitly narrow supported-operator set that throws on the rest.
+> - `coral-dbt` has no Java source: it ships Jinja macros and Python tests that call `coral-service` over HTTP for incremental view maintenance, and its `build.gradle` swallows test failures.
+> - `coral-service` is the Spring Boot REST front door whose `localMetastore` and `remoteMetastore`/`default` profiles switch between an embedded Derby HMS and a real one, wiring the translation, visualization, and incremental modules to HTTP endpoints.
+
 ```mermaid
 graph LR
     HiveSQL[Hive SQL] --> Pig[coral-pig]
@@ -95,6 +102,12 @@ The reverse-direction module: a Spark physical-plan or optimized-logical-plan te
 Internally, `constructDAG` parses the indented plan text into a tree of `SparkPlanNode` containers (in `containers/SparkPlanNode.java`), then `traverse` walks each scan node and re-parses its predicate string through `HiveToRelConverter` to recover a `RexNode` for analysis. The plan-text parsing is regex-and-indent based — fragile against Spark version changes that tweak `EXPLAIN` output format.
 
 Typical PRs: extending the `SIMPLE_PREDICATE_OPERATORS` set, adapting the regex to a new Spark plan format, and adding new analysis APIs (the predicate-pushdown analysis is the only one currently shipped — adding e.g. shuffle-detection would slot in alongside `getComplicatedPredicatePushedDownInfo`). Review hot-spots: the regex that splits the plan, the `HiveToRelConverter` reuse (it's a static field, so concurrent converter instances share state), and the exception swallowing in the public APIs that turns parser errors into `{"Error!": "..."}` entries in the result map — easy to miss in calling code.
+
+## Self-check
+
+1. In `coral-incremental`, how does `RelNodeIncrementalTransformer` rewrite a `TableScan` and a `LogicalJoin`, and why is the `Aggregate` path a correctness gap the dbt consumer has to compensate for?
+2. `coral-spark-plan` runs Coral in reverse. How does `SparkPlanToIRRelConverter` turn `EXPLAIN` plan text into a `RelNode`, and why is the parsing fragile across Spark versions?
+3. The dbt `incremental_maintenance` materialization relies on two other modules in this chapter. Trace the request path: which `coral-service` endpoint does the `coral-dbt` macro hit, and which module performs the actual incremental rewrite?
 
 ## Files this chapter discusses
 

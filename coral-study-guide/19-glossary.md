@@ -2,6 +2,13 @@
 
 Alphabetical reference. Each entry is one sentence — enough to anchor recall, short enough to scan. For the load-bearing terms, follow the chapter pointer.
 
+> **Reading time** ~11 min  ·  **Prerequisites** none
+>
+> **Key takeaways**
+> - Each entry is a one-sentence definition followed by a chapter pointer; read the entry to anchor recall, then jump to the cited chapter when a term is load-bearing.
+> - Entries are alphabetical, so scan rather than read top to bottom; class names like `ToRelConverter`, `FuzzyUnionSqlRewriter`, and `StaticHiveFunctionRegistry` appear under their own names.
+> - Use this as the cross-chapter index for LinkedIn-specific terms (`Dali`, `Espresso`, `ViewShift`, `Transport UDF`) and Calcite terms (`SqlNode`, `RelNode`, `RexNode`, convertlet) that recur throughout the guide.
+
 - **ANTLR** — parser generator. Coral uses ANTLR v3 for the Hive grammar (`coral-hive`) and a shaded ANTLR v4 for the Trino grammar (`shading/coral-trino-parser`); the version mismatch is why shading exists ([chapter 06](06-coral-hive.md), [chapter 09](09-coral-trino.md)).
 - **AST** — abstract syntax tree. In Coral this means the `SqlNode` tree, close to surface SQL and produced by every frontend ([chapter 02](02-calcite-primer.md)).
 - **Avro** — schema-driven serialization format; LinkedIn's standard for Kafka, Espresso, and event pipelines, and the output format of `coral-schema` ([chapter 10](10-coral-schema.md)).

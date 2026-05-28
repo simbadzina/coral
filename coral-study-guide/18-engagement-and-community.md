@@ -2,6 +2,13 @@
 
 How to be visible, how to ask, and how to keep up with Coral. Short and pragmatic — the goal is to get you from passive reader to recognized voice in three months.
 
+> **Reading time** ~7 min  ·  **Prerequisites** none
+>
+> **Key takeaways**
+> - Coral is maintained almost entirely by a small set of LinkedIn engineers in the US, so reviews are fast during US Pacific business hours and slow on weekends and holidays; `git shortlog -sn --since="6 months ago"` identifies the current reviewers.
+> - Use Slack for design questions and build-failure diagnosis, but file bugs as issues and send security disclosures to `security@linkedin.com`, since Slack threads aren't searchable from outside the workspace.
+> - Coral releases roughly weekly via Shipkit, which generates release notes from merged PR titles, so a clear imperative title with the `[Coral-Module]` prefix is what downstream users read.
+
 ## Maintainers
 
 Coral is a small project by headcount. From `git shortlog -sn --since="2 years ago"`, the active contributor set over the past two years is:
@@ -78,6 +85,11 @@ Five concrete ways to move from observer to contributor:
 - **Write the chapter that wasn't there.** This study guide exists because the codebase was hard to onboard onto. If you find a topic that needs deeper treatment, propose it. The cycle of read → confused → research → write is exactly how senior contributors are built.
 
 The single best signal of "I'm a Coral contributor" is being cc'd on PRs in your area without asking. That tends to happen around the 3-5 merged PR mark, assuming the PRs were thoughtful and the review interactions were professional.
+
+## Self-check
+
+1. Which command gives the most reliable signal for "who is reviewing PRs right now," and what does the answer tell you about review timing?
+2. Why does Shipkit's release process make PR title hygiene matter, and what prefix convention should a module-scoped title use?
 
 ## Read next
 

@@ -2,6 +2,13 @@
 
 `coral-trino` is the only module in Coral that is both a frontend and a backend. The `rel2trino` package emits Trino SQL from Coral IR and is the production path; the `trino2rel` package parses Trino SQL into Coral IR and is POC quality. The backend hosts the largest transformer chain in the codebase — about twenty `SqlCallTransformer` classes coordinated through two shuttles — and is where most Trino-specific semantic divergence (timezone handling, NULL ordering, `UNNEST` over array-of-struct, named struct construction) gets paved over. After this chapter you can trace a query through `HiveToTrinoConverter`, locate the right transformer for a Trino-specific quirk, and explain why the Trino parser is shaded.
 
+> **Reading time** ~19 min  ·  **Prerequisites** [chapter 03](03-pipeline-deep-dive.md), [chapter 07](07-transformers-pattern.md)
+>
+> **Key takeaways**
+> - `coral-trino` is bidirectional: `rel2trino` emits Trino SQL and is the production path, while `trino2rel` parses Trino SQL into Coral IR and is POC quality, with its operator transformer map registering only `strpos → instr`.
+> - `RelToTrinoConverter.convert` runs a two-pass transformer structure — `DataTypeDerivedSqlCallConverter` for the type-aware transformers, then `CoralToTrinoSqlCallConverter` for the structural ones — and overrides `RelToSqlConverter` visit methods where Calcite's defaults emit standard SQL that is not valid Trino SQL.
+> - The Trino parser is shaded under `coral.shading.*` because Calcite ships ANTLR v3 and Trino's parser uses ANTLR v4, so both cannot share the classpath unrelocated.
+
 ## Why this module is special
 
 Every other backend in Coral is one-directional. `coral-spark` only emits; `coral-hive` only parses. `coral-trino` does both:
@@ -169,6 +176,13 @@ Suppose Hive's `unix_timestamp(date_str, format)` needs a Trino-side rewrite. Th
 5. Mirror in Spark if needed. Check `coral-spark/.../transformers/` — if the analogous Spark rewrite is missing or different, file an issue or land both in the same PR.
 
 The transformers are intentionally small (~30-100 lines each); adding one is closer to writing a Calcite snippet than to refactoring the converter.
+
+## Self-check
+
+1. What decides whether a new `coral-trino` transformer goes in `DataTypeDerivedSqlCallConverter` versus `CoralToTrinoSqlCallConverter`, and why is the order between the two passes fixed?
+2. Why must `RelToTrinoConverter` override `visit(TableScan)`, `visit(Project)`, and `visit(Uncollect)` instead of reusing Calcite's `RelToSqlConverter` defaults?
+3. What does `RegisterDynamicFunctionsForTypeDerivation` do before `TypeDerivationUtil` is constructed, and what fails without it?
+4. Explain why the Trino parser must be shaded under `coral.shading.*`, and how that connects to the `SqlCallTransformer` framework introduced in [chapter 07](07-transformers-pattern.md) that every transformer here extends.
 
 ## Files this chapter discusses
 

@@ -2,6 +2,13 @@
 
 Coral is open source, but its design is rooted in LinkedIn's data platform. Read the code long enough and you will trip over names that mean nothing outside the company: `dali_udf`, `VersionedSqlUserDefinedFunction`, `FuzzyUnionSqlRewriter`, `coral_udf_version_x_y_z`, `IcebergTable`, `MergeCoralSchemaWithAvro`. This chapter is the orientation a non-LinkedIn reader needs — what each term refers to in the surrounding ecosystem, why the corresponding code paths exist, and which files implement the integration. None of this is required to *use* Coral, but you cannot read PRs in `coral-common`, `coral-hive`, or `coral-spark` without it.
 
+> **Reading time** ~15 min  ·  **Prerequisites** [chapter 06](06-coral-hive.md), [chapter 08](08-coral-spark.md)
+>
+> **Key takeaways**
+> - Dali stores versioned views and a function registry in HMS `TBLPROPERTIES`, and `HiveCalciteTableAdapter` plus `DaliOperatorTable` are the two code paths that let Coral resolve those UDFs.
+> - `TransportUDFTransformer` detects a Dali view's Hive-form UDF class, picks the Scala 2.11 or 2.12 Ivy URL for the active Spark session, and records a `SparkUDFInfo` so the caller knows which JARs to load.
+> - `FuzzyUnionSqlRewriter` reconciles `UNION` branches whose nested structs drifted by wrapping mismatched columns in `generic_project`, but only for backward-compatible additions where one branch is a strict superset of another.
+
 ## The ecosystem in one diagram
 
 ```mermaid
@@ -145,6 +152,12 @@ The relevant module is `coral-incremental` ([chapter 14](14-other-modules.md) co
 - The 2023 Iceberg Meetup deck (linked from the README's Resources section) is the precursor.
 
 For a Coral committer, the takeaways are: IVM is a Coral IR rewrite — a `RelShuttle` that walks the view's logical plan and emits an incremental form — and Iceberg is the natural materialization target because Iceberg's snapshot deltas line up with the IVM output. [Chapter 14](14-other-modules.md) dives into the rewriting rules themselves; chapter 15 just establishes that this is one of the major LinkedIn workloads driving the open-source project.
+
+## Self-check
+
+1. Where does a Dali view declare its UDFs, and which two classes does Coral use to turn a short function name into a bound Calcite operator?
+2. When reviewing a new `TransportUDFTransformer` entry, why must both Scala 2.11 and Scala 2.12 Ivy URLs be considered, and what does `condition()` do when the active Spark version's URL is missing?
+3. `FuzzyUnionSqlRewriter` fires during view expansion in `coral-hive` and `coral-spark`'s `FuzzyUnionGenericProjectTransformer` finishes the job — what does each side contribute (see [chapter 08](08-coral-spark.md))?
 
 ## Files this chapter discusses
 

@@ -2,6 +2,13 @@
 
 This is the most-touched code surface in Coral. Every backend uses it; most PRs touch one. After this chapter you can read or write a transformer, predict what changing the order of a chain will do, and recognize the four anti-patterns reviewers catch on these PRs.
 
+> **Reading time** ~16 min  ·  **Prerequisites** [chapter 04](04-coral-common.md)
+>
+> **Key takeaways**
+> - A `SqlCallTransformer` is a guarded rewrite over a `SqlCall`: `condition()` decides whether to fire and `transform()` builds a fresh call, with the template method `apply()` tying them together.
+> - `SqlCallTransformers` runs its chain mechanically and unconditionally — every transformer sees the previous one's output, there is no early-exit, so order is load-bearing.
+> - Type-dependent transformers must be constructed with a `TypeDerivationUtil` and registered in the type-aware pass (`DataTypeDerivedSqlCallConverter`), while name-only rewrites subclass `OperatorRenameSqlCallTransformer` or use the `JsonTransformSqlCallTransformer` DSL.
+
 ## The interface
 
 `SqlCallTransformer` is an abstract class in [`coral-common/src/main/java/com/linkedin/coral/common/transformers/SqlCallTransformer.java`](../coral-common/src/main/java/com/linkedin/coral/common/transformers/SqlCallTransformer.java). Two abstract methods define a transformer:
@@ -270,6 +277,13 @@ The placement rule is simple and load-bearing:
 - **Dialect-specific transformers** — anything that names a Trino-specific operator, a Spark-specific operator, or a LinkedIn UDF — live in the backend module's `transformers/` subpackage. The convention is `coral-<dialect>/src/main/java/com/linkedin/coral/<dialect>/rel2<dialect>/transformers/` for the Hive→dialect direction.
 
 A type-dependent transformer in coral-trino additionally lives behind `DataTypeDerivedSqlCallConverter` rather than `CoralToTrinoSqlCallConverter`, because only the former wires up a `TypeDerivationUtil`. If your transformer calls `deriveRelDatatype`, register it there.
+
+## Self-check
+
+1. Given the `SqlCallTransformers.apply` loop, what happens if you put `ReturnTypeAdjustmentTransformer` *before* the operator renames in `CoralToTrinoSqlCallConverter`, and why?
+2. When does a transformer need the two-arg `SqlCallTransformer(TypeDerivationUtil)` constructor, and how does `TypeDerivationUtil` produce a `RelDataType` for an arbitrary `SqlNode`?
+3. Of the four reviewer anti-patterns, which one produces a transformer that passes SqlNode-tree unit tests but emits broken SQL, and what override fixes it?
+4. A new transformer names a Trino-specific operator and inspects an operand's type — which package and which of the two Trino passes ([chapter 09](09-coral-trino.md)) does it belong in?
 
 ## Files this chapter discusses
 

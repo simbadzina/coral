@@ -2,6 +2,13 @@
 
 `coral-hive` is the most-used frontend in the codebase and the template every other dialect frontend imitates. It parses HiveQL (and, by extension, the Hive-compatible subset of Spark SQL) into Coral IR by composing six pieces: an ANTLR-generated lexer/parser that emits Hive's own `ASTNode` tree, a `ParseTreeBuilder` that translates that tree into Calcite `SqlNode`s, a function resolver that binds every call to a `SqlOperator`, a small normalization shuttle, the Hive-tweaked validator and `SqlToRelConverter`, and a minimal convertlet table. After this chapter you can navigate `parsetree/`, `functions/`, and the top-level `hive2rel/` package; you understand how Hive function resolution actually works, including the Dali UDF path; and you can recognize the `FuzzyUnionSqlRewriter` and `HiveViewExpander` flows when they show up in a PR.
 
+> **Reading time** ~20 min  ·  **Prerequisites** [chapter 02](02-calcite-primer.md), [chapter 03](03-pipeline-deep-dive.md), [chapter 04](04-coral-common.md)
+>
+> **Key takeaways**
+> - `ParseTreeBuilder` walks Hive's untyped `ASTNode` tree through `AbstractASTVisitor` dispatch, turning each node into a `SqlNode` and resolving every function call through `HiveFunctionResolver.tryResolve`.
+> - Hive built-ins are hard-coded in `StaticHiveFunctionRegistry`'s static block with no autoloading, while Dali UDFs resolve at runtime from the view's `functions` TBLPROPERTY, wrapped in `VersionedSqlUserDefinedFunction` or a dynamic `SqlUserDefinedFunction`.
+> - `HiveToRelConverter` fills `ToRelConverter`'s abstract hooks with Hive-tweaked classes — `HiveSqlValidator`, `HiveSqlToRelConverter`, `CoralConvertletTable`, `DaliOperatorTable`, and `HiveViewExpander` — and recursive view expansion expands nested views down to base tables.
+
 ## Package layout
 
 ```mermaid
@@ -208,6 +215,13 @@ For PRs that touch `coral-hive`:
 - **Hive-specific operator semantics.** New behavior often belongs in a `SqlCallTransformer` rather than in `ParseTreeBuilder`. [Chapter 07](07-transformers-pattern.md) walks the framework.
 - **View-handling changes.** Anything that touches `HiveViewExpander` or `FuzzyUnionSqlRewriter` is load-bearing for every Dali view at LinkedIn. Demand tests against nested views with three or more levels of nesting, and against views with UNION ALL whose branches drifted.
 - **Cast folding.** Changes to `CoralConvertletTable.convertCast` ripple into every backend. The current behavior (always emit an abstract cast) is intentional — proposals to "optimize" it should answer how Spark and Trino unparsing react when the cast is folded.
+
+## Self-check
+
+1. Walk `tryResolve` for a Dali UDF that is *not* registered in `StaticHiveFunctionRegistry` under its class name — which method fires, what operator does it build, and where is the result cached?
+2. Why does `AbstractASTVisitor` exist, and what property of Hive's `ASTNode` tree forces the dispatch-table design instead of polymorphic visitor methods?
+3. `HiveSqlValidator.expand` returns `FunctionFieldReferenceOperator.DOT` calls unchanged — what would Calcite's standard `expand` do otherwise, and why does that break downstream?
+4. `HiveSqlNodeToCoralSqlNodeConverter` runs a single-entry `SqlCallTransformers` chain today — how does that chain relate to the larger backend chains covered in [chapter 07](07-transformers-pattern.md)?
 
 ## Files this chapter discusses
 

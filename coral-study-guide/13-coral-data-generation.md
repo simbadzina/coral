@@ -2,6 +2,13 @@
 
 `coral-data-generation` solves a problem most test frameworks dodge: given a SQL predicate, produce concrete input rows that satisfy it — without generating-and-rejecting. It does this by inverting the predicate's expression tree symbolically, computing for each base-table column a `Domain` of values that, when run forward through the predicate, are guaranteed to make it true. The module is small (one `domain/` package, one `rel/` package, ~15 source files), and it is the most academically dense code in the repo: closed algebraic structures, automaton intersection, fixed-point rewrites, DNF normalization. After this chapter you can read the package without consulting the `dk.brics.automaton` Javadoc on every line.
 
+> **Reading time** ~20 min  ·  **Prerequisites** [chapter 02](02-calcite-primer.md) (and [chapter 05](05-type-system-and-catalog.md) helps)
+>
+> **Key takeaways**
+> - `DomainInferenceProgram.deriveInputDomain` inverts a predicate's `RexNode` tree top-down: at each operator a matching `DomainTransformer` refines the output `Domain` into the child's input domain, recursing until it reaches a `RexInputRef`, so every sampled row is satisfying by construction.
+> - `Domain` has two concrete forms — `RegexDomain` (a `dk.brics.automaton` finite-state automaton over strings) and `IntegerDomain` (sorted disjoint closed intervals, closed under `add` and `multiply`) — and CAST is the only operator that bridges between them via `IntegerRangeAutomaton` and `RegexToIntegerDomainConverter`.
+> - An empty domain anywhere in the inversion signals an unsatisfiable predicate, and the `rel/` package (`ProjectPullUpController`, `CanonicalPredicateExtractor`, `DnfRewriter`) normalizes a Calcite plan into the single global-indexed DNF predicate the solver expects.
+
 ## Why this exists
 
 A SQL test corpus needs rows that exercise specific predicates: `WHERE LOWER(SUBSTRING(name, 1, 3)) = 'abc' AND age * 2 + 5 > 50`. Random data generation produces overwhelmingly rejected rows — almost no random name matches the prefix, almost no random age satisfies the arithmetic. Selectivity collapses on conjunction. The cost scales with predicate restrictiveness, and at any non-trivial corpus size the random approach simply does not converge.
@@ -160,6 +167,12 @@ The architecture is open to closing each gap by adding transformers, adding the 
 [Chapter 12](12-coral-benchmark.md) covers `coral-benchmark`'s three verification levels (TRANSLATION, EXPLAIN, RESULT_SET). The third level needs in-memory data for both source and target engines. Today the corpus uses static `RowSet` fixtures wired up per query; nothing prevents an integration where `coral-data-generation` ingests the same query, walks the pipeline, derives a `Domain` per column, and emits a `RowSet` sized to the predicate's solution space. That removes the per-query fixture burden and makes the test corpus generative.
 
 The shape of that integration is clean: `coral-benchmark` already depends on `coral-hive` for parsing, and `coral-data-generation` consumes a `RelNode` produced by the same parser. A small adapter — `Domain` → `RowSet` cell values, choosing one sample per row — is the bridge. When a query produces an empty domain for any column, the benchmark surfaces it as a contradiction rather than a translation failure, which is more useful diagnostic information.
+
+## Self-check
+
+1. Walk `deriveInputDomain` through `LOWER(SUBSTRING(name, 1, 3)) = 'abc'`: what is the starting output domain, which transformers fire in what order, and what domain lands on `name`?
+2. `WHERE x * 2 = 7` produces no valid integer. Where in `TimesIntegerTransformer` does that contradiction surface, and how does the solver propagate an empty domain upward?
+3. The solver expects one `RexNode` predicate over base-table columns by global index, but a Calcite plan ([chapter 02](02-calcite-primer.md)) does not deliver that. What do `ProjectPullUpController`, `CanonicalPredicateExtractor`, and `DnfRewriter` each contribute to producing it?
 
 ## Files this chapter discusses
 

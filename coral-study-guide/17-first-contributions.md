@@ -2,6 +2,13 @@
 
 Six concrete, low-risk PR ideas. Each is grounded in a real recent template PR you can read first, names the files you'll touch, and the test class to extend. Pick one, ship it, then come back for the second. After the six ideas, a list of areas to leave alone for now, the submission process, and a 90-day plan that gets you from reader to contributor.
 
+> **Reading time** ~11 min  ·  **Prerequisites** [chapter 16](16-pr-review-companion.md)
+>
+> **Key takeaways**
+> - The lowest-risk first PRs register a missing Trino UDF, write a `SqlCallTransformer` subclass, expand the `coral-benchmark` corpus, document an undocumented module, clear a Javadoc warning batch, or port a transformer between `coral-trino` and `coral-spark`.
+> - Avoid `CoralCatalog`, `MergeCoralSchemaWithAvro`, the `coral-data-generation` symbolic solver, `HiveTypeSystem` precision rules, and the `shading/coral-trino-parser` config for a first PR — these are in flux or carry high scrutiny.
+> - The submission process from `CONTRIBUTING.md` is fixed: open an issue first for non-trivial changes, branch off `master`, run `./gradlew clean build` before opening, write an imperative-mood title that Shipkit turns into a release note, and accept the CLA.
+
 ## Easy first PRs
 
 ### 1. Register a missing Hive UDF for Trino
@@ -114,6 +121,12 @@ A month-by-month plan to go from reading the codebase to being a recognized cont
 - Review one PR a week, even if just to ask a clarifying question. [Chapter 16](16-pr-review-companion.md) is the checklist.
 - Comment on a design discussion (issue #575 and similar are good places — see [chapter 18](18-engagement-and-community.md)). Offer a perspective, not just a question.
 - By the end of month 3, you should have 3–4 merged PRs and a few thoughtful review comments. That's the threshold where maintainers start cc'ing you on PRs in your areas.
+
+## Self-check
+
+1. For a missing Trino UDF, what distinguishes idea 1 (a `CoralRegistryOperatorRenameSqlCallTransformer` entry) from idea 2 (a `SqlCallTransformer` subclass)?
+2. The process section lists `CONTRIBUTING.md`'s steps — which one is violated most often, and why does skipping it waste your time?
+3. Why does the chapter steer first-time contributors away from `CoralCatalog` and `HiveTypeSystem`, and which chapters explain the migration and the cross-backend ripple (see [chapter 16](16-pr-review-companion.md))?
 
 ## Files this chapter discusses
 

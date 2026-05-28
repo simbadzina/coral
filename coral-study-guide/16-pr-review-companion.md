@@ -2,6 +2,13 @@
 
 The chapter you live in as a reviewer. Per-module checklists, red flags, and reusable comment templates. After this chapter you can review a PR in any Coral module systematically — without re-deriving the per-module conventions every time, and without re-reading [chapter 04](04-coral-common.md)-14 from scratch. This is the reference. Keep it open while you review.
 
+> **Reading time** ~27 min  ·  **Prerequisites** [chapter 03](03-pipeline-deep-dive.md), [chapter 07](07-transformers-pattern.md), and the module chapters [04](04-coral-common.md)–[14](14-other-modules.md)
+>
+> **Key takeaways**
+> - The universal preflight is a five-minute meta-check you run before reading any code: green build, Spotless applied, tests present, commit-message style, a linked issue for non-trivial changes, no unjustified dependencies, and a reasonable diff size.
+> - The per-module checklists each follow the same shape — common change shapes, what to verify, and red flags — sized to the review surface that module actually presents.
+> - The red-flags catalog lists the recurring patterns to push back on, ordered by frequency: TODOs, swallowed exceptions, regex SQL fixups, silent type narrowing, missing dialect parity, missing `unparse` overrides, and new uses of deprecated `HiveMetastoreClient` / raw HMS `Table` surface.
+
 Coral PRs are usually small. The merged history is dominated by single-module changes that add a function, fix a transformer, or extend a registry. Big architectural moves (the type system in #558/#563, the `CoralCatalog` migration in #604, the `coral-benchmark` module in #599) happen, but they are the exception. Most reviews are a single transformer file plus a test diff. The cheat sheets below are sized accordingly.
 
 ## Universal preflight
@@ -225,6 +232,13 @@ test case in MergeCoralSchemaWithAvroTests modeling the new behavior?
 The existing test names read like a spec sheet — a regression there is
 what downstream Iceberg consumers hit first.
 ```
+
+## Self-check
+
+1. What seven checks make up the universal preflight, and why do you run all of them before reading a single line of the diff?
+2. A PR adds an entry to `StaticHiveFunctionRegistry`. Which test class must the diff also touch, and why is a transformer-only or unit test insufficient?
+3. A transformer is added at the bottom of the `SqlCallTransformers.of(...)` chain. What is the per-PR check that tells you whether that position is correct (see [chapter 07](07-transformers-pattern.md))?
+4. Why does a `coral-schema` change that alters field names or namespaces require pulling the `ViewToAvroSchemaConverter → AddExplicitAlias → CoralSparkViewCatalog.loadView` chain through mentally?
 
 ## Files this chapter discusses
 

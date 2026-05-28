@@ -2,6 +2,13 @@
 
 `coral-spark` is the backend that turns a Coral IR `RelNode` into a Spark SQL string plus the metadata Spark needs to register any UDFs the query references. The module is small — one entry class (`CoralSpark`), a six-stage internal pipeline, four `SqlCallTransformer`s for UDF/union handling, a `SqlDialect`, and two container types. After this chapter you can trace `CoralSpark.create()` end to end, know why TransportUDF detection runs before HiveUDF fallback, and identify what work `IRRelToSparkRelTransformer` does that the later SqlNode stages can't.
 
+> **Reading time** ~18 min  ·  **Prerequisites** [chapter 03](03-pipeline-deep-dive.md), [chapter 07](07-transformers-pattern.md)
+>
+> **Key takeaways**
+> - `CoralSpark.create` runs a six-stage pipeline that starts with `IRRelToSparkRelTransformer` on the `RelNode` and ends with `SparkSqlRewriter` plus `SparkSqlDialect.toSqlString`, returning the Spark SQL string, base tables, UDF list, and `SqlNode`.
+> - `IRRelToSparkRelTransformer` operates at the `RelNode`/`RexNode` layer because typed expressions like `SqlStdOperatorTable.ITEM` over `ArraySqlType` (the 1-based to 0-based array-index fix) are unambiguous there, work the later `SqlNode` stages cannot do cleanly.
+> - UDF resolution runs `TransportUDFTransformer` instances before `HiveUDFTransformer` so a UDF rewrites to its Spark-native Transport counterpart before falling back to a Hive `HIVE_CUSTOM_UDF` registration, each recording a `SparkUDFInfo`.
+
 ## The public API
 
 Two static factory methods on `CoralSpark`, both in [`coral-spark/src/main/java/com/linkedin/coral/spark/CoralSpark.java`](../coral-spark/src/main/java/com/linkedin/coral/spark/CoralSpark.java):
@@ -213,6 +220,13 @@ classDiagram
 - **A change adding a `SqlCallTransformer` to `DataTypeDerivedSqlCallConverter`** means the transformer needs `RelDataType` inference. Verify the transformer constructor accepts a `TypeDerivationUtil` and that the type derivation happens off the *top* `SqlNode`, not a fragment.
 - **A change to `SparkSqlDialect`** affects unparse output for every Spark query Coral emits. Diff the dialect's reserved-keyword list and the `unparseCall` switch carefully — the existing list is hand-maintained.
 - **A change to `SparkSqlRewriter`** should justify why the rewrite can't live in the dialect's `unparseCall` instead. The rewriter is for cases the dialect's API can't reach.
+
+## Self-check
+
+1. Why does the 1-based to 0-based array-index conversion live in `IRRelToSparkRelTransformer` (stage 1) rather than in one of the later `SqlNode` stages?
+2. In `CoralToSparkSqlCallConverter`'s chain, what breaks if `HiveUDFTransformer` runs before the `TransportUDFTransformer` instances?
+3. Why is the running set of discovered UDFs a `Set<SparkUDFInfo>` rather than a `List`, and which `SparkUDFInfo` property makes that work?
+4. Stage 3 (`DataTypeDerivedSqlCallConverter`) is the only one needing the `HiveMetastoreClient` — what does it do with it, and how does that connect to the `TypeDerivationUtil` mechanism from [chapter 07](07-transformers-pattern.md)?
 
 ## Files this chapter discusses
 

@@ -2,6 +2,13 @@
 
 `coral-benchmark` is the regression-catching framework for cross-dialect translation. A single Hive query translated to Trino must either round-trip through Coral IR cleanly (cheap), parse and plan on a Trino engine (medium), or produce the same result set when both engines execute the same data (expensive). This chapter walks the three verification levels, the SPI you implement to plug in a dialect or an engine, and the corpus pattern that makes adding new test cases a high-leverage contribution.
 
+> **Reading time** ~16 min  ·  **Prerequisites** [chapter 01](01-the-big-picture.md) (and [chapter 07](07-transformers-pattern.md) helps)
+>
+> **Key takeaways**
+> - The three verification levels — `TRANSLATION`, `EXPLAIN`, `RESULT_SET` — are an ordered escalation, each subsuming the one before, and `VerificationLevel`'s ordinal order gates the engine requirement in `TranslationTestSuite`.
+> - The module ships only the framework — orchestrator, SPI (`Dialect`, `DialectPlugin`, `DialectPluginProvider`, `EnginePlugin`), `InMemoryCatalog`, and comparison machinery — built on `coral-common` alone; concrete plugins and the test corpus live elsewhere and the comparator still throws `UnsupportedOperationException`.
+> - Adding a `TRANSLATION`-level test case is one `.sql` file plus catalog registration with no new Java, which is why expanding the corpus is a high-leverage contribution.
+
 ## Why this module exists
 
 Coral's value proposition collapses N × N translators to 2 × N by introducing an IR — see [chapter 01](01-the-big-picture.md) for the framing. The cost of that abstraction is a coverage problem: any frontend or backend change can subtly break an unrelated dialect pair. Module-level unit tests in `coral-hive` and `coral-trino` catch obvious regressions, but they verify the converter in isolation. They do not check that a Hive query, after passing through `HiveToRelConverter` and `RelToTrinoConverter`, is also semantically equivalent on a live Trino engine.
@@ -225,6 +232,12 @@ Three reasons, in order of importance:
 3. **The SPI is the extension point.** When a new dialect lands (say, Coral grows a Snowflake backend), the work to add benchmark coverage is exactly one `DialectPluginProvider` plus one `EnginePlugin`. The orchestrator and the comparator come along for free.
 
 The module is new and there is no test corpus committed yet — that is exactly the contribution [chapter 17](17-first-contributions.md) points at. The framework is the scaffolding; the queries are the value.
+
+## Self-check
+
+1. What does each of the three verification levels actually check, which engines and test data does each require, and why does `RESULT_SET` need a `ComparisonConfig`?
+2. A contributor wants to add a window-function translation test. What is the full delta for a `TRANSLATION`-level case, and what additionally changes for `EXPLAIN` and `RESULT_SET`?
+3. Why does `DialectPluginProvider` exist as a separate interface from `DialectPlugin` rather than putting an `init(catalog)` method on the plugin, and how does the suite discover providers? Connect this to where `coral-data-generation` ([chapter 13](13-coral-data-generation.md)) would supply the `RowSet` data.
 
 ## Files this chapter discusses
 
