@@ -1,6 +1,6 @@
 # 07 — The `SqlCallTransformer` pattern
 
-This is the most-touched code surface in Coral. Every backend uses it; most PRs touch one. After this chapter you can read or write a transformer, predict what changing the order of a chain will do, and recognize the four anti-patterns reviewers catch on these PRs.
+This is the most-touched code surface in Coral. Every backend uses it; most PRs touch one. After this chapter you can read or write a transformer, predict what changing the order of a chain will do, and recognize the four anti-patterns reviewers catch on these PRs. The pattern is the product of a 2023–2024 migration that moved transforms from the RelNode layer up to the SqlNode layer ([chapter 20](20-project-history.md)).
 
 > **Reading time** ~16 min  ·  **Prerequisites** [chapter 04](04-coral-common.md)
 >

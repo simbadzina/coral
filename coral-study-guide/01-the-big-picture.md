@@ -149,7 +149,7 @@ You can use Coral without any of these; if you read code that mentions `DaliOper
 
 ## Why the IR is faithful to Hive
 
-Coral's type system, validator, and converter implementations all skew Hive-flavored. `HiveTypeSystem` defines precision rules. `HiveSqlValidator` is the validator. `HiveRelBuilder` overrides UNNEST quirks. This is a historical artifact: Coral started as a Hive-centric tool inside LinkedIn before generalizing. The legacy shows up in places — most visibly in `ToRelConverter.processViewWithCoralCatalog`, which still converts Iceberg tables to a "minimal Hive Table" for backward compatibility (tracked in issue #575). When reviewing PRs in `coral-common` or `coral-hive`, watch for whether the change is paving over this legacy or entrenching it.
+Coral's type system, validator, and converter implementations all skew Hive-flavored. `HiveTypeSystem` defines precision rules. `HiveSqlValidator` is the validator. `HiveRelBuilder` overrides UNNEST quirks. This is a historical artifact: Coral started as a Hive-centric tool inside LinkedIn before generalizing ([chapter 20](20-project-history.md) traces the full evolution). The legacy shows up in places — most visibly in `ToRelConverter.processViewWithCoralCatalog`, which still converts Iceberg tables to a "minimal Hive Table" for backward compatibility (tracked in issue #575). When reviewing PRs in `coral-common` or `coral-hive`, watch for whether the change is paving over this legacy or entrenching it.
 
 ## Self-check
 

@@ -45,6 +45,7 @@ There are three reading modes:
 | 17 | [First contributions](17-first-contributions.md) | Concrete easy-PR ideas |
 | 18 | [Engagement and community](18-engagement-and-community.md) | Maintainers, Slack, release cadence |
 | 19 | [Glossary](19-glossary.md) | Alphabetical reference for terms |
+| 20 | [Project history](20-project-history.md) | How Coral evolved 2017→2026; the major pivots |
 
 Exercises live under [`exercises/`](exercises/) and are designed to be done with a debugger and a real source tree open.
 
